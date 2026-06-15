@@ -1,0 +1,17 @@
+# === Web 框架与服务器 ===
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
+# === 数据模型与 ORM ===
+pydantic>=2.0.0
+sqlalchemy>=2.0.0
+
+# === 向量 / 语义检索 ===
+numpy>=1.24.0
+# sentence-transformers 会连带安装 torch 与 transformers；
+# 首次运行会下载 bge-small-zh-v1.5（约 100MB）用于中文语义嵌入。
+# 如果你的环境网络受限，可先手动下载到本地 .hf_models/ 目录。
+sentence-transformers>=2.5.0
+
+# === 调用大模型（OpenAI 兼容协议 / Ollama 均可）===
+requests>=2.30.0

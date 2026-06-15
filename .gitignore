@@ -1,0 +1,66 @@
+# === 运行时产生的本地数据库与配置（含 API Key，不应提交）===
+# knowledge.db：用户自己的运行时数据库，含真实 API Key，必须忽略
+# knowledge_demo.db：仓库预载的演示数据库，空 api_key + 示例节点，允许提交
+knowledge.db
+!knowledge_demo.db
+*.sqlite
+*.sqlite3
+settings.json
+
+# === Python 编译缓存 ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# === 虚拟环境（每位用户自己建）===
+.venv/
+venv/
+env/
+.python-version
+
+# === 本地大模型缓存（体积巨大，不应上传）===
+.hf_models/
+.huggingface/
+.cache/
+
+# === 本地生成的文档与备份（运行时产物）===
+生成文档/
+生成的文档/
+*_backup_*.docx
+*_edited*.docx
+*_output_*.docx
+
+# === 调试/测试脚本（开发临时产物）===
+# 所有以 debug_ / test_ / _test / _diag / _manual / _check / _restore /
+# _probe 等前缀开头的 .py / .ps1 脚本，以及以 _ 开头的目录都视为临时产物
+debug_*.py
+test_*.py
+_test_*.py
+_diag_*.py
+_manual_*.py
+_check_*.py
+_restore_*.ps1
+_probe_*.py
+_*_*.py
+qa_debug*.py
+qa_hit.py
+
+# 任何以 _ 开头的目录（临时测试截图/报告）
+_*/
+
+# 测试文档与临时文本
+*_test*.docx
+*_测试*.docx
+full_test.txt
+small_test.txt
+import_test.txt
+
+# === 系统/IDE 无关文件 ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

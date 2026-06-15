@@ -1,0 +1,2988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>个人知识网络</title>
+<!-- ECharts 官方 CDN：主源 + 备用源，任意一个加载成功即可 -->
+<script>
+  (function () {
+    window.__echartsSources = [
+      "https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js",
+      "https://unpkg.com/echarts@5.5.0/dist/echarts.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"
+    ];
+    window.__echartsReady = false;
+    function tryLoad(idx) {
+      if (idx >= window.__echartsSources.length) return;
+      var s = document.createElement("script");
+      s.src = window.__echartsSources[idx];
+      s.onload = function () { window.__echartsReady = true; };
+      s.onerror = function () { tryLoad(idx + 1); };
+      document.head.appendChild(s);
+    }
+    tryLoad(0);
+  })();
+</script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #222; }
+
+  /* ===== 顶部 Tab ===== */
+  .tab-bar { display: flex; background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 24px; }
+  .tab { padding: 14px 22px; font-size: 14px; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: #4f8cff; }
+  .tab.active { color: #4f8cff; border-bottom-color: #4f8cff; font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: flex; height: calc(100vh - 49px); width: 100%; padding: 16px 20px 20px; gap: 16px; }
+
+  /* ===== 左右两栏通用布局 ===== */
+  .sidebar {
+    width: 320px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .sidebar .header { padding: 20px 22px 18px; border-bottom: 1px solid #eef0f3; flex-shrink: 0; }
+  .graph-sidebar .header { display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; }
+  .graph-sidebar .category-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 240px; padding-right: 4px; }
+  .sidebar .header h1 { margin: 0 0 14px; font-size: 16px; font-weight: 600; color: #111827; letter-spacing: 0.3px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+  .toolbar input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; outline: none; }
+  .toolbar input:focus { border-color: #4f8cff; }
+  .btn { padding: 8px 14px; background: #4f8cff; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.15s; }
+  .btn:hover { background: #3b76e0; }
+  .btn.secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+  .btn.secondary:hover { background: #f3f4f6; border-color: #4f8cff; color: #4f8cff; }
+  .btn.danger { background: #ef4444; }
+  .btn.danger:hover { background: #dc2626; }
+  .category-select { width: 100%; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
+
+  .node-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .node-item { padding: 12px 22px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; }
+  .node-item:hover { background: #f8fafc; }
+  .node-item.active { background: #eef4ff; border-left-color: #4f8cff; }
+  .node-item .title { font-size: 14px; font-weight: 600; color: #1f2937; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .node-item .meta { font-size: 12px; color: #6b7280; }
+  .node-item .tag { display: inline-block; background: #eef2ff; color: #4f46e5; padding: 1px 6px; border-radius: 4px; margin-right: 4px; font-size: 11px; }
+  .empty { padding: 40px 16px; text-align: center; color: #9ca3af; font-size: 13px; }
+
+  /* ===== 右侧主体（两个 Tab 共用） ===== */
+  .content {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 28px 32px;
+    overflow-y: auto;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    position: relative;
+  }
+  .content .title-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #f0f2f5; }
+  .content h2 { margin: 0; font-size: 20px; font-weight: 600; color: #111827; }
+  .actions { display: flex; gap: 8px; }
+  .meta-info { color: #6b7280; font-size: 13px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #eef0f3; }
+  .detail-content { background: #fafbfd; padding: 22px 26px; border-radius: 8px; line-height: 1.75; font-size: 14px; white-space: pre-wrap; border: 1px solid #eef0f3; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #374151; }
+  .form-group input[type=text], .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+  .form-group input[type=text]:focus, .form-group textarea:focus { border-color: #4f8cff; box-shadow: 0 0 0 2px rgba(79,140,255,0.12); }
+  .form-group textarea { resize: vertical; min-height: 220px; }
+  .tip { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+
+  .placeholder { text-align: center; color: #9ca3af; padding-top: 18%; font-size: 15px; }
+
+  .toast { position: fixed; top: 24px; right: 24px; background: #10b981; color: #fff; padding: 10px 18px; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); opacity: 0; transition: opacity 0.3s; z-index: 999; font-size: 13px; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #ef4444; }
+
+  /* ===== 图谱 Tab：左侧边栏（统计 + 分类图例） ===== */
+  .graph-sidebar .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+  .graph-sidebar .stat-row .key { color: #6b7280; }
+  .graph-sidebar .stat-row .val { color: #111827; font-weight: 600; }
+  .graph-sidebar .section-title { font-size: 12px; font-weight: 600; color: #6b7280; margin: 18px 0 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .graph-sidebar .category-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: #374151; }
+  .graph-sidebar .category-row:hover { background: #f3f4f6; }
+  .graph-sidebar .category-row .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .graph-sidebar .category-row .cat-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .graph-sidebar .category-row .count { color: #9ca3af; font-size: 12px; }
+  .graph-sidebar .threshold-wrap { margin-top: 14px; padding: 14px; background: #f8fafc; border-radius: 8px; }
+  .graph-sidebar .threshold-wrap label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+  .graph-sidebar .threshold-wrap .row { display: flex; align-items: center; gap: 10px; }
+  .graph-sidebar .threshold-wrap input[type=range] { flex: 1; accent-color: #4f8cff; }
+  .graph-sidebar .threshold-wrap .val { font-size: 13px; font-weight: 600; color: #4f8cff; min-width: 32px; text-align: right; }
+  .graph-sidebar .hint { font-size: 12px; color: #9ca3af; line-height: 1.6; margin-top: 14px; }
+  .graph-sidebar .body { flex: 1; overflow-y: auto; padding: 14px 22px 12px; min-height: 0; }
+  .graph-sidebar .bottom-row { flex-shrink: 0; padding: 14px 22px 18px; border-top: 1px solid #eef0f3; display: flex; flex-direction: column; gap: 8px; }
+  .graph-sidebar .bottom-row button {
+    padding: 10px 12px; border: 1px solid #d1d5db; background: #fff; color: #374151;
+    border-radius: 8px; cursor: pointer; font-size: 13px; text-align: left;
+    transition: all 0.15s;
+  }
+  .graph-sidebar .bottom-row button:hover {
+    background: #eef4ff; border-color: #4f8cff; color: #4f8cff;
+  }
+
+  /* ===== 图谱 Tab：右侧主体 ===== */
+  .graph-content {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .graph-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #eef0f3;
+    flex-shrink: 0;
+  }
+  .graph-toolbar .title { font-size: 16px; font-weight: 600; color: #111827; letter-spacing: 0.3px; }
+  .graph-toolbar .title small { display: block; font-size: 12px; color: #9ca3af; font-weight: 400; margin-top: 3px; }
+  .graph-toolbar .actions { display: flex; gap: 8px; }
+  .graph-toolbar .actions button { padding: 6px 14px; background: #fff; border: 1px solid #d1d5db; color: #374151; cursor: pointer; border-radius: 6px; font-size: 12px; transition: all 0.15s; }
+  .graph-toolbar .actions button:hover { background: #f3f4f6; border-color: #4f8cff; color: #4f8cff; }
+  .graph-chart-wrap { flex: 1; position: relative; padding: 8px; }
+  #graphChart { width: 100%; height: 100%; }
+
+  /* 节点详情卡片（图谱节点点击） */
+  .detail-card {
+    position: absolute;
+    right: 20px; top: 20px;
+    width: 360px;
+    max-height: calc(100% - 40px);
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+    padding: 20px 22px;
+    z-index: 5;
+  }
+  .detail-card h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #111827; padding-right: 28px; }
+  .detail-card .meta { color: #6b7280; font-size: 12px; margin-bottom: 10px; }
+  .detail-card .body { font-size: 13px; line-height: 1.7; white-space: pre-wrap; color: #374151; max-height: 200px; overflow-y: auto; background: #f9fafb; padding: 12px 14px; border-radius: 8px; }
+  .detail-card .close { position: absolute; top: 12px; right: 12px; font-size: 20px; cursor: pointer; color: #9ca3af; border: none; background: transparent; line-height: 1; width: 24px; height: 24px; }
+  .detail-card .close:hover { color: #ef4444; }
+  .detail-card .section-title { margin: 16px 0 10px; font-size: 12px; font-weight: 600; color: #6b7280; letter-spacing: 0.5px; text-transform: uppercase; }
+  .detail-card .tag-row { margin-bottom: 10px; }
+  .detail-card .tag-row .tag { display: inline-block; background: #eef2ff; color: #4f46e5; padding: 2px 8px; border-radius: 4px; margin-right: 5px; font-size: 11px; }
+  .related-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .related-list li { padding: 10px 12px; border-radius: 8px; background: #f8fafc; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.15s; border: 1px solid transparent; }
+  .related-list li:hover { background: #eef4ff; border-color: #dbe7ff; }
+  .related-list .title { font-size: 13px; color: #1f2937; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; }
+  .related-list .sim { font-size: 12px; color: #4f46e5; font-weight: 600; padding: 2px 8px; background: #eef4ff; border-radius: 10px; }
+
+  .graph-empty { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #9ca3af; font-size: 14px; text-align: center; }
+
+  /* ===== 通用：模态框（LLM 设置 / 边关系详情） ===== */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-mask.show { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 12px; width: 540px; max-width: calc(100% - 40px);
+    max-height: calc(100% - 60px); overflow: hidden; display: flex; flex-direction: column;
+    box-shadow: 0 20px 50px rgba(15,23,42,0.2);
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px; border-bottom: 1px solid #eef0f3;
+  }
+  .modal-header h3 { margin: 0; font-size: 16px; font-weight: 600; color: #111827; }
+  .modal-header .close {
+    background: transparent; border: none; cursor: pointer;
+    color: #9ca3af; font-size: 22px; line-height: 1;
+  }
+  .modal-header .close:hover { color: #ef4444; }
+  .modal-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+  .modal-body label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: #374151; margin-bottom: 6px;
+  }
+  .modal-body input[type=text], .modal-body input[type=number],
+  .modal-body input[type=password] {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-size: 13px; margin-bottom: 14px; outline: none; font-family: inherit;
+  }
+  .modal-body input:focus { border-color: #4f8cff; box-shadow: 0 0 0 2px rgba(79,140,255,0.12); }
+  .modal-body .inline-row { display: flex; gap: 12px; }
+  .modal-body .inline-row > div { flex: 1; }
+  .modal-body .switch-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0;
+    border-bottom: 1px dashed #e5e7eb; margin-bottom: 14px;
+  }
+  .modal-body .switch-row input { transform: scale(1.15); accent-color: #4f8cff; }
+  .modal-footer { padding: 14px 22px; border-top: 1px solid #eef0f3; display: flex; justify-content: flex-end; gap: 8px; }
+
+  .relation-chip {
+    display: inline-block; font-size: 13px; font-weight: 600;
+    padding: 6px 14px; border-radius: 999px; background: #4f8cff; color: #fff;
+    margin-right: 8px;
+  }
+  .relation-chip.unrelated { background: #94a3b8; }
+  .relation-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: #f8fafc; border-radius: 8px; margin-bottom: 8px;
+  }
+  .relation-row .label { font-size: 12px; color: #6b7280; }
+  .relation-row .val { font-size: 13px; color: #111827; font-weight: 600; }
+  .meta-card {
+    background: #fafbfd; border: 1px solid #eef0f3; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 14px;
+  }
+  .meta-card .title { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+  .meta-card .cat { font-size: 12px; color: #6b7280; }
+
+  /* ========== Tab 3: 智能问答 ========== */
+  .qa-sidebar .header { padding-bottom: 14px; }
+  .qa-chain { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; max-height: 35vh; overflow-y: auto; }
+  .qa-chain-empty { font-size: 13px; color: #9ca3af; padding: 8px 4px; }
+  .qa-chain-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .qa-chain-item:hover { border-color: #4f8cff; background: #eef4ff; }
+  .qa-chain-item.qa-chain-item-hint {
+    cursor: default; border-color: #fde68a; background: #fffbeb;
+  }
+  .qa-chain-item.qa-chain-item-hint .qa-chain-order { background: #d97706; color: #fff; }
+  .qa-chain-item.qa-chain-item-hint:hover { border-color: #fbbf24; background: #fef3c7; }
+  .qa-chain-order {
+    flex-shrink: 0;
+    width: 28px; height: 28px; line-height: 28px;
+    background: #f59e0b; color: #fff; border-radius: 50%;
+    text-align: center; font-weight: 700; font-size: 13px;
+  }
+  .qa-chain-body { flex: 1; }
+  .qa-chain-title { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+  .qa-chain-explain { font-size: 12px; color: #4b5563; line-height: 1.6; }
+
+  .qa-refs { display: flex; flex-direction: column; gap: 4px; max-height: 28vh; overflow-y: auto; }
+  .qa-ref-item {
+    padding: 8px 10px; border-radius: 6px;
+    font-size: 12px; color: #374151;
+    background: #f9fafb; display: flex; justify-content: space-between; gap: 8px;
+    border: 1px solid #eef0f3;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .qa-ref-item:hover { background: #eef4ff; border-color: #dbe7ff; }
+  .qa-ref-item .sim { color: #4f46e5; font-weight: 600; }
+
+  .qa-main {
+    flex: 1; display: flex; flex-direction: column;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .qa-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 22px; border-bottom: 1px solid #eef0f3;
+  }
+  .qa-toolbar .title { font-size: 15px; font-weight: 600; color: #111827; }
+  .qa-toolbar .actions { display: flex; gap: 8px; }
+  .qa-toolbar .actions button {
+    padding: 6px 12px; background: #fff; border: 1px solid #d1d5db;
+    color: #374151; cursor: pointer; border-radius: 6px; font-size: 12px;
+    transition: all 0.15s;
+  }
+  .qa-toolbar .actions button:hover { background: #f3f4f6; border-color: #4f8cff; color: #4f8cff; }
+  .qa-box { flex: 1; overflow-y: auto; padding: 22px 28px; display: flex; flex-direction: column; gap: 14px; }
+  .qa-question {
+    background: #f5f7fb; border-left: 4px solid #4f8cff;
+    padding: 12px 16px; border-radius: 8px;
+    font-size: 14px; color: #1f2937; font-weight: 500;
+  }
+  .qa-answer {
+    background: #fffbea; border: 1px solid #fde68a; border-left: 4px solid #f59e0b;
+    padding: 16px 20px; border-radius: 8px;
+    font-size: 14px; color: #374151; line-height: 1.8; white-space: pre-wrap;
+  }
+  .qa-hint { font-size: 12px; color: #6b7280; }
+  .qa-history-wrap {
+    max-height: 360px; width: 100%; display: flex; flex-direction: column;
+    border: 1px solid #e5e7eb; border-radius: 10px;
+    overflow: hidden; margin-top: 6px;
+  }
+  .qa-history-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; background: #f9fafb;
+    border-bottom: 1px solid #eef0f3;
+  }
+  .qa-mini-graph-title {
+    font-size: 13px; color: #374151; font-weight: 600;
+  }
+  .qa-history {
+    flex: 1; overflow: auto; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .qa-history-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .qa-history-item:hover { border-color: #4f8cff; background: #eef4ff; }
+  .qa-history-q { font-size: 13px; color: #111827; line-height: 1.5; font-weight: 600; word-break: break-word; }
+  .qa-history-a { font-size: 12px; color: #6b7280; line-height: 1.5; margin-top: 4px; word-break: break-word; }
+  .qa-history-time { font-size: 11px; color: #9ca3af; margin-top: 6px; }
+  .btn-mini {
+    font-size: 12px; padding: 4px 10px; background: #fff; border: 1px solid #d1d5db;
+    border-radius: 6px; color: #374151; cursor: pointer;
+  }
+  .btn-mini:hover { background: #f3f4f6; border-color: #9ca3af; }
+
+  /* 自由对话 */
+  .freechat-sidebar .header { padding: 14px 16px 12px; border-bottom: 1px solid #eef0f3; flex-shrink: 0; }
+  .freechat-sidebar h1 { font-size: 18px; color: #1f2937; margin: 0 0 6px; }
+  .freechat-sidebar .sub-tip { font-size: 12px; color: #6b7280; margin-bottom: 10px; line-height: 1.5; }
+  .freechat-sidebar .body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px 16px;
+    min-height: 0;
+  }
+  .freechat-sidebar .section-title {
+    font-size: 12px; font-weight: 600; color: #6b7280;
+    margin: 4px 0 8px;
+    letter-spacing: 0.3px;
+  }
+  .freechat-sidebar .collapsible-title {
+    font-size: 12px; font-weight: 600; color: #6b7280;
+    margin: 14px 0 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+    padding: 4px 2px;
+    border-radius: 4px;
+  }
+  .freechat-sidebar .collapsible-title:hover { color: #4f8cff; }
+  .freechat-sidebar .collapsible-title .arrow { font-size: 10px; color: #9ca3af; transition: transform 0.2s; }
+  .freechat-session-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .freechat-session-item {
+    padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .freechat-session-item:hover { border-color: #4f8cff; background: #f5f7fb; }
+  .freechat-session-item.active {
+    border-color: #4f8cff; background: #e6eeff;
+  }
+  .freechat-session-title { font-size: 13px; color: #1f2937; font-weight: 500; margin-bottom: 4px; word-break: break-word; }
+  .freechat-session-time { font-size: 11px; color: #9ca3af; }
+
+  .freechat-box {
+    flex: 1; padding: 20px 28px; display: flex; flex-direction: column; gap: 12px; min-height: 0;
+  }
+  .freechat-messages {
+    flex: 1; overflow-y: auto; background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .freechat-empty { font-size: 13px; color: #9ca3af; text-align: center; padding: 30px 10px; }
+  .freechat-msg-row { display: flex; }
+  .freechat-msg-row.user { justify-content: flex-end; }
+  .freechat-msg-row.assistant { justify-content: flex-start; }
+  .freechat-msg-bubble {
+    max-width: 78%; background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 10px; padding: 10px 14px;
+  }
+  .freechat-msg-row.user .freechat-msg-bubble {
+    background: #e6eeff; border-color: #b7cbff;
+  }
+  .freechat-msg-row.assistant .freechat-msg-bubble {
+    background: #fff; border-color: #dbeafe;
+  }
+  .freechat-msg-head { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+  .freechat-msg-body { font-size: 14px; color: #1f2937; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+
+  .freechat-input {
+    display: flex; gap: 8px; align-items: flex-end;
+    border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; background: #fff;
+  }
+  .freechat-input textarea {
+    flex: 1; border: none; outline: none; resize: none; font-size: 14px; color: #1f2937;
+    background: transparent; font-family: inherit; line-height: 1.5;
+  }
+  .freechat-input .btn { margin: 0; }
+
+</style>
+</head>
+<body>
+
+<!-- ============ Tab 导航 ============ -->
+<div class="tab-bar">
+  <div class="tab active" data-tab="list">📝 列表管理</div>
+  <div class="tab" data-tab="graph">🕸 知识图谱</div>
+  <div class="tab" data-tab="qa">🧠 智能问答</div>
+  <div class="tab" data-tab="freechat">💬 自由对话</div>
+  <div class="tab" data-tab="import">📥 文档导入</div>
+</div>
+
+<!-- ============ Tab 1: 列表管理 ============ -->
+<div id="tab-list" class="tab-panel active">
+  <aside class="sidebar">
+    <div class="header">
+      <h1>📚 Siyuan · 个人知识网络</h1>
+      <div class="toolbar">
+        <input id="searchInput" type="text" placeholder="搜索标题 / 内容 / 标签…" />
+        <button class="btn" id="btnNew">+ 新增</button>
+      </div>
+      <select id="categoryFilter" class="category-select">
+        <option value="">全部分类</option>
+      </select>
+    </div>
+    <div class="node-list" id="nodeList"></div>
+  </aside>
+
+  <main class="content" id="mainContent">
+    <div class="placeholder">👈 请从左侧选择节点，或点击「+ 新增」创建新知识</div>
+  </main>
+</div>
+
+<!-- ============ Tab 2: 知识图谱 ============ -->
+<div id="tab-graph" class="tab-panel">
+  <aside class="sidebar graph-sidebar">
+    <div class="header">
+      <h1>🕸 语义关联图谱</h1>
+      <div class="stat-row"><span class="key">节点总数</span><span class="val" id="stat-nodes">—</span></div>
+      <div class="stat-row"><span class="key">关联边数</span><span class="val" id="stat-edges">—</span></div>
+      <div class="stat-row"><span class="key">分类数</span><span class="val" id="stat-cats">—</span></div>
+
+      <div class="section-title">分类图例</div>
+      <div class="category-list" id="category-legend">
+        <span style="color:#9ca3af; font-size:12px; padding: 4px 8px;">加载中…</span>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="threshold-wrap">
+        <label>相似度阈值 <span class="tip">（≥ 该值才显示连线）</span></label>
+        <div class="row">
+          <input id="threshold" type="range" min="0.3" max="0.95" step="0.05" value="0.7" />
+          <span class="val" id="thresholdVal">0.70</span>
+        </div>
+      </div>
+
+      <div class="hint">
+        滚轮缩放 · 拖拽平移 · 节点可单独拖动<br />
+        点击节点查看详情与 Top3 相关点；点击连线查看 AI 识别的关系类型
+      </div>
+
+      <div class="section-title" style="margin-top:8px;">📒 已手动连线 (<span id="mrCount">0</span>)</div>
+      <div id="mrList" style="overflow-y:auto; padding:4px 10px 10px 10px; display:flex; flex-direction:column; gap:6px;">
+        <span style="font-size:12px; color:#9ca3af; padding:6px 4px;">（暂无手动连线）</span>
+      </div>
+    </div>
+
+    <div class="bottom-row" style="padding-top:10px;">
+      <button id="btnManualMode">📌 手动连线模式（点击两个节点即可连线）</button>
+      <button id="btnOpenSettings">🛠 大模型配置（用于识别节点关系）</button>
+    </div>
+  </aside>
+
+  <div class="graph-content">
+    <div class="graph-toolbar">
+      <div class="title">
+        关系图谱
+        <small>根据节点文本内容的向量相似度自动生成关联；<span style="color:#1d4ed8;">蓝色粗线</span>=手动连线 · 点击节点/连线查看详情</small>
+      </div>
+      <div class="actions">
+        <span id="manualModeIndicator" style="display:none; font-size:12px; color:#1d4ed8; background:#dbeafe; padding:6px 10px; border-radius:6px; margin-right:8px; font-weight:600;">
+          📍 手动连线中 <span id="mmStatus" style="font-weight:400; color:#64748b;">请点击第一个节点</span>
+          <span style="cursor:pointer; margin-left:6px; color:#64748b;" id="mmExit">[退出]</span>
+        </span>
+        <button id="btnRefresh">🔄 刷新</button>
+        <button id="btnReset">↺ 重置视图</button>
+      </div>
+    </div>
+    <div class="graph-chart-wrap">
+      <div id="graphChart"></div>
+    </div>
+    <div id="graphDetail"></div>
+  </div>
+</div>
+
+<!-- ============ 手动连线设置弹窗 ============ -->
+<div class="modal-mask" id="manualLinkModal">
+  <div class="modal-box" style="max-width:460px;">
+    <div class="modal-header">
+      <h3>📌 创建手动连线</h3>
+      <button class="close" onclick="closeModal('manualLinkModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="mlmNodes" style="background:#f0f7ff; border:1px solid #dbeafe; border-radius:8px; padding:10px 14px; font-size:12px; margin-bottom:14px;">
+        <b>节点 A：</b><span id="mlmNodeA">—</span><br/>
+        <b>节点 B：</b><span id="mlmNodeB">—</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <label style="font-size:12px; color:#374151; font-weight:600;">关系类型
+          <select id="mlmType" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; margin-top:4px;"></select>
+        </label>
+        <label style="font-size:12px; color:#374151; font-weight:600;">强度（0~1）
+          <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+            <input id="mlmStrength" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;" />
+            <span id="mlmStrengthVal" style="font-family:monospace; font-size:13px; color:#374151; min-width:36px; text-align:right;">0.80</span>
+          </div>
+        </label>
+        <label style="font-size:12px; color:#374151; font-weight:600;">说明（可选）
+          <textarea id="mlmDesc" rows="3" placeholder="例如：二者是同一主题下的不同章节" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; margin-top:4px; resize:vertical; font-family:inherit;"></textarea>
+        </label>
+      </div>
+      <div id="mlmStatus" style="font-size:11px; color:#6b7280; min-height:16px; margin-top:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn secondary" onclick="closeModal('manualLinkModal')">取消</button>
+      <button class="btn" id="mlmSubmit">✅ 创建连线</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Tab 3: 智能问答 ============ -->
+<div id="tab-qa" class="tab-panel">
+  <aside class="sidebar qa-sidebar">
+    <div class="header">
+      <h1>🧠 动态逻辑链问答</h1>
+      <div style="font-size:12px; color:#6b7280; margin-bottom:10px;">基于知识图谱推理：AI 会先从知识网络中召回相关节点，再给出推理。</div>
+      <div class="toolbar" style="flex-direction:column; gap:8px; align-items:stretch;">
+        <textarea id="qaInput" rows="3" placeholder="请输入你的问题…（Enter 发送，Shift+Enter 换行）" style="width:100%; min-height:72px; resize:vertical; overflow-y:auto; line-height:1.5; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; outline:none;"></textarea>
+        <button class="btn" id="btnQASubmit" style="width:100%;">🚀 提交问题</button>
+      </div>
+      <div class="section-title" style="margin-top:18px;">📋 推理步骤（逻辑链）</div>
+      <div class="qa-chain" id="qaChain">
+        <span class="qa-chain-empty">等待问题…</span>
+      </div>
+      <div class="section-title" style="margin-top:18px;">🔎 参考节点 (top-k)</div>
+      <div class="qa-refs" id="qaRefs"></div>
+    </div>
+  </aside>
+
+  <main class="qa-main">
+    <div class="qa-toolbar">
+      <div class="title">💡 问题 & 答案</div>
+      <div class="actions">
+        <button id="btnQAJumpGraph">👉 切换到图谱查看逻辑链路高亮</button>
+        <button id="btnQAClear">🗑 清空</button>
+      </div>
+    </div>
+    <div class="qa-box">
+      <div class="qa-question" id="qaQuestion"></div>
+      <div class="qa-answer" id="qaAnswer">
+        <span class="tip" style="color:#9ca3af;">👋 你好！在左侧输入问题，我们基于知识网络回答。</span>
+      </div>
+      <div class="qa-hint" id="qaHint"></div>
+      <!-- ============ 诊断窗口（显示当前模式/召回节点/LLM 原始输出 ============ -->
+      <div class="qa-debug-wrap" style="margin-top:16px; border:1px dashed #d1d5db; border-radius:10px; padding:12px; background:#fafbfc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div style="font-weight:600; color:#374151;">🩺 诊断窗口</div>
+          <div>
+            <span style="font-size:12px; color:#6b7280;">当前模式：</span>
+            <span id="qaDebugMode" style="font-size:12px; padding:2px 8px; border-radius:12px; background:#e5e7eb; color:#374151;">--</span>
+            <span style="font-size:12px; color:#6b7280; margin-left:12px;">最高相似度：</span>
+            <span id="qaDebugBestSim" style="font-size:12px; font-family:monospace; color:#374151;">--</span>
+            <span style="font-size:12px; color:#6b7280; margin-left:12px;">召回节点：</span>
+            <span id="qaDebugCount" style="font-size:12px; font-family:monospace; color:#374151;">0</span>
+          </div>
+        </div>
+        <div id="qaDebugRetrieved" style="max-height:160px; overflow:auto; font-size:12px; color:#4b5563; margin-bottom:8px; display:none;"></div>
+        <div id="qaDebugRaw" style="font-size:12px; color:#4b5563; background:#f3f4f6; padding:8px 10px; border-radius:6px; white-space:pre-wrap; word-break:break-word; display:none;"></div>
+        <div id="qaDebugTip" style="font-size:12px; color:#9ca3af;">提交一次问题后会显示本次检索与模型输出细节。</div>
+      </div>
+      <div class="qa-history-wrap">
+        <div class="qa-history-header">
+          <div class="qa-mini-graph-title">🕒 历史搜索记录</div>
+          <button class="btn btn-mini" id="btnQaClearHistory" style="font-size:12px; padding:4px 10px;">清空历史</button>
+        </div>
+        <div class="qa-history" id="qaHistory">
+          <span class="qa-chain-empty">暂无搜索记录，提交一次问题后会自动记录。</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ Tab 4: 自由对话 ============ -->
+<div id="tab-freechat" class="tab-panel">
+  <aside class="sidebar freechat-sidebar">
+    <div class="header">
+      <h1>💬 自由对话</h1>
+      <div class="sub-tip">与大模型自由聊天，支持多轮上下文与多会话管理。</div>
+      <button class="btn" id="btnFreeChatNew" style="width:100%;">＋ 开启新对话</button>
+    </div>
+    <div class="body">
+      <div class="section-title">📁 会话列表</div>
+      <div id="freechatSessionList" class="freechat-session-list">
+        <span class="qa-chain-empty">暂无会话，点击上方「开启新对话」开始。</span>
+      </div>
+
+      <div class="collapsible-title" id="docGenToggle">
+        📝 文档生成设置
+        <span class="arrow" id="docGenToggleIcon">▼</span>
+      </div>
+      <div id="docGenPanel" style="font-size:12px; line-height:1.9;">
+        <label style="display:block; margin-bottom:8px;">
+          写作风格
+          <select id="docGenStyle" style="width:100%; padding:6px 8px; margin-top:2px; border:1px solid #d1d5db; border-radius:6px; font-size:12px; background:#fff;">
+            <option value="popular">科普风格</option>
+            <option value="formal">正式文章</option>
+            <option value="outline">要点列表</option>
+            <option value="tutorial">教程步骤</option>
+          </select>
+        </label>
+        <label style="display:block; margin-bottom:8px;">
+          目标字数
+          <select id="docGenLength" style="width:100%; padding:6px 8px; margin-top:2px; border:1px solid #d1d5db; border-radius:6px; font-size:12px; background:#fff;">
+            <option value="medium">中 ~800 字</option>
+            <option value="short">短 ~300 字</option>
+            <option value="long">长 ~1500 字</option>
+          </select>
+        </label>
+        <div style="padding:8px 10px; background:#f3f4f6; border-radius:6px; font-size:11px; color:#374151; line-height:1.6; margin-bottom:8px;">
+          📁 <b>文档保存位置</b>：<code id="docGenSavePath" style="background:#e5e7eb; padding:2px 4px; border-radius:3px; color:#374151;">程序目录\生成文档</code><br/>
+          <span style="color:#6b7280;">生成后会在消息中显示完整路径</span>
+        </div>
+        <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+          <input type="checkbox" id="docGenUseKB" checked/>
+          <span style="font-size:12px; color:#374151;">基于知识库内容写作（未命中则自由撰写）</span>
+        </label>
+      </div>
+
+      <div class="collapsible-title" id="docEditToggle">
+        ✏️ 编辑现有文档
+        <span class="arrow" id="docEditToggleIcon">▼</span>
+      </div>
+      <div id="docEditPanel" style="font-size:12px; line-height:1.9;">
+        <label style="display:block; margin-bottom:8px;">
+          文档路径（必填）
+          <input type="text" id="docEditFilePath" placeholder="如：E:\文章\初稿.docx" style="width:100%; padding:6px 8px; margin-top:2px; border:1px solid #d1d5db; border-radius:6px; font-size:12px; background:#fff; box-sizing:border-box;"/>
+        </label>
+        <label style="display:block; margin-bottom:8px;">
+          输出目录（留空则覆盖原文件，自动生成备份）
+          <input type="text" id="docEditOutputDir" placeholder="可选" style="width:100%; padding:6px 8px; margin-top:2px; border:1px solid #d1d5db; border-radius:6px; font-size:12px; background:#fff; box-sizing:border-box;"/>
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12px; color:#374151;">
+          <input type="checkbox" id="docEditUseKB" checked/>
+          基于知识库内容编辑（匹配不到时允许 AI 合理补充）
+        </label>
+        <div style="padding:8px 10px; background:#f3f4f6; border-radius:6px; font-size:11px; color:#374151; line-height:1.7; margin-bottom:8px;">
+          <b>使用方式</b>：
+          <br/>1. 填好文档路径
+          <br/>2. 在右侧输入框描述编辑需求，如：
+          <br/>· 把第2段改成 XXX
+          <br/>· 在第3段后插入一段介绍产品优势的内容
+          <br/>· 删除第5段，并在末尾追加总结
+          <br/>3. 点击下方按钮
+          <br/>4. 文件目录不能用引号且必须在该项目目录下
+        </div>
+        <button class="btn secondary" id="btnDocEditSubmit" style="width:100%; padding:8px;">✨ 执行文档编辑</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="qa-main freechat-main">
+    <div class="qa-toolbar">
+      <div class="title">📝 当前对话：<span id="freechatSessionTitle">未选择</span></div>
+      <div class="actions">
+        <button id="btnFreeChatDelete">🗑 删除当前对话</button>
+      </div>
+    </div>
+    <div class="freechat-box">
+      <div id="freechatMessages" class="freechat-messages">
+        <div class="freechat-empty">👋 请在左侧选择或开启一个对话，然后在下方输入消息。点击右侧「📝 生成文档」可生成文档，或在左侧「✏️ 编辑现有文档」中点击按钮编辑文档。</div>
+      </div>
+      <div class="freechat-input" style="flex-direction:row;">
+        <textarea id="freechatInput" rows="2" placeholder="输入消息，按 Enter 发送（Shift+Enter 换行）。" style="flex:1;"></textarea>
+        <div style="display:flex; flex-direction:column; gap:4px; margin-left:6px;">
+          <button class="btn" id="btnFreeChatSend">发送</button>
+          <button class="btn secondary" id="btnFreeChatGenDoc" style="font-size:11px; padding:6px 10px;">📝 生成文档</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ Tab 5: 文档导入 ============ -->
+<div id="tab-import" class="tab-panel">
+  <aside class="sidebar freechat-sidebar" style="width:340px;">
+    <div class="header">
+      <h1>📥 文档导入</h1>
+      <div style="font-size:12px; color:#6b7280; margin-bottom:10px;">上传 .txt/.docx，大模型会自动识别、切块、提取知识节点并写入知识库。</div>
+
+      <div style="margin-bottom:10px;">
+        <label class="btn" for="importFileInput" style="display:block; text-align:center; width:100%;">📁 选择文件</label>
+        <input type="file" id="importFileInput" style="display:none;" accept=".txt,.docx" />
+      </div>
+
+      <div id="importFileInfo" style="font-size:12px; color:#6b7280; margin-bottom:8px;">尚未选择文件</div>
+
+      <div style="margin-bottom:10px;">
+        <button class="btn" id="btnImportStart" style="width:100%;" disabled>🚀 开始解析</button>
+      </div>
+
+      <div id="importProgress" style="font-size:12px; color:#6b7280; margin-bottom:10px;"></div>
+
+      <div class="section-title">👋 操作说明</div>
+      <div style="font-size:12px; color:#4b5563; line-height:1.7; padding:4px 0;">
+        1) 选择一个 <b>.txt</b> 或 <b>.docx</b> 文件（txt ≤ 1MB，docx ≤ 2MB）。<br/>
+        2) 点击「开始解析」，大模型会从文档中自动提取候选知识节点。<br/>
+        3) 在右侧编辑 / 勾选，最后点击「确认写入知识库」。
+      </div>
+    </div>
+  </aside>
+
+  <main class="qa-main" style="flex:1;">
+    <div class="qa-toolbar">
+      <div class="title" id="importMainTitle">📝 候选节点（等待上传与解析）</div>
+      <div class="actions">
+        <button id="btnImportSelectAll" style="padding:6px 14px; background:#fff; border:1px solid #d1d5db; color:#374151; cursor:pointer; border-radius:6px; font-size:12px;">全选</button>
+        <button id="btnImportClearSelection" style="padding:6px 14px; background:#fff; border:1px solid #d1d5db; color:#374151; cursor:pointer; border-radius:6px; font-size:12px;">全不选</button>
+        <button id="btnImportConfirm" class="btn" disabled>✅ 确认写入知识库</button>
+        <button id="btnImportReset" class="btn secondary">🔄 重置</button>
+      </div>
+    </div>
+
+    <div class="qa-box" id="importCandidatesBox">
+      <div class="placeholder" id="importEmptyHint">
+        请先在左侧选择文件并开始解析。<br/>
+        <span style="font-size:12px; color:#9ca3af;">（提示：若长时间未出现结果，请检查大模型配置是否可用。）</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 边关系详情弹窗 -->
+<div class="modal-mask" id="edgeRelationModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="edgeRelationTitle">🔍 节点关系</h3>
+      <button class="close" onclick="closeModal('edgeRelationModal')">×</button>
+    </div>
+    <div class="modal-body" id="edgeRelationBody">
+      <span class="tip" style="color:#9ca3af;">正在调用大模型识别关系…</span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn secondary" onclick="closeModal('edgeRelationModal')">关闭</button>
+      <button class="btn" id="btnReanalyze">🔄 重新识别（忽略缓存）</button>
+    </div>
+  </div>
+</div>
+
+<!-- LLM 配置模态框 -->
+<div class="modal-mask" id="llmSettingsModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>🛠 大模型配置</h3>
+      <button class="close" onclick="closeModal('llmSettingsModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="switch-row">
+        <input type="checkbox" id="setEnabled" />
+        <label for="setEnabled" style="margin:0;">启用 AI 关系识别（关闭后默认返回"无关联"）</label>
+      </div>
+      <label>API Base URL（兼容 OpenAI 协议，例如通义千问 / 智谱 / DeepSeek / 本地 Ollama）</label>
+      <input type="text" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
+      <label>API Key（仅存于本地 knowledge.db，不在响应中返回明文）</label>
+      <input type="password" id="setApiKey" placeholder="sk-..." />
+      <label>模型名称（例：gpt-4o-mini / qwen-plus / glm-4-flash / deepseek-chat）</label>
+      <input type="text" id="setModel" placeholder="gpt-4o-mini" />
+      <div class="inline-row">
+        <div>
+          <label>温度 (0~1)</label>
+          <input type="number" id="setTemperature" min="0" max="1" step="0.1" value="0.2" />
+        </div>
+        <div>
+          <label>超时（秒）</label>
+          <input type="number" id="setTimeout" min="1" max="600" step="1" value="30" />
+        </div>
+      </div>
+      <div class="tip">说明：系统会缓存识别结果（按节点对）。要强制刷新可在弹窗点「重新识别」。</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn secondary" onclick="closeModal('llmSettingsModal')">取消</button>
+      <button class="btn" id="btnSaveSettings">💾 保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================== 基础配置 ==================== */
+const API_BASE = "/api";
+let nodes = [];
+let allNodes = [];
+let currentNodeId = null;
+let isEditing = false;
+let chart = null;
+let chartInited = false;
+
+/* ==================== 工具函数 ==================== */
+function toast(msg, type) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "toast show " + (type === "error" ? "error" : "");
+  setTimeout(() => (el.className = "toast"), 2200);
+}
+function formatTime(str) {
+  if (!str) return "";
+  const d = new Date(str);
+  return d.toLocaleString("zh-CN", { hour12: false });
+}
+function escape(s) {
+  return String(s || "").replace(/[&<>"']/g, m => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+function normalizeId(id) { return String(id); }
+
+/* ==================== API 封装 ==================== */
+async function apiGet(url) {
+  const res = await fetch(API_BASE + url);
+  if (!res.ok) throw new Error("请求失败: " + res.status);
+  return res.json();
+}
+async function apiPost(url, body) {
+  const res = await fetch(API_BASE + url, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = "请求失败: " + res.status;
+    try {
+      const errData = await res.json();
+      if (errData) {
+        const detail = errData.detail || errData.error || errData.message;
+        if (detail) msg = msg + " — " + (typeof detail === "string" ? detail : JSON.stringify(detail));
+      }
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+async function apiPut(url, body) {
+  const res = await fetch(API_BASE + url, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = "请求失败: " + res.status;
+    try {
+      const errData = await res.json();
+      const detail = errData.detail || errData.error || errData.message;
+      if (detail) msg = msg + " — " + (typeof detail === "string" ? detail : JSON.stringify(detail));
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+async function apiDelete(url) {
+  const res = await fetch(API_BASE + url, { method: "DELETE" });
+  if (!res.ok) throw new Error("请求失败: " + res.status);
+  return res.json();
+}
+async function apiPostMultipart(url, formData) {
+  const res = await fetch(API_BASE + url, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    let msg = "请求失败: " + res.status;
+    try {
+      const errData = await res.json();
+      if (errData && errData.detail) msg = msg + " — " + errData.detail;
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+/* ==================== 通用：模态框开关 ==================== */
+function openModal(id) { document.getElementById(id).classList.add("show"); }
+function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+
+/* ==================== LLM 配置读写 ==================== */
+async function fetchLlmSettings() {
+  try { return await apiGet("/settings/llm"); }
+  catch (e) { return null; }
+}
+async function openLlmSettings() {
+  const s = await fetchLlmSettings();
+  if (!s) { toast("读取大模型配置失败", "error"); return; }
+  document.getElementById("setEnabled").checked = !!s.enabled;
+  document.getElementById("setBaseUrl").value = s.base_url || "";
+  document.getElementById("setApiKey").value = ""; // 前端不回显
+  document.getElementById("setModel").value = s.model || "";
+  document.getElementById("setTemperature").value = s.temperature ?? 0.2;
+  document.getElementById("setTimeout").value = s.timeout ?? 30;
+  openModal("llmSettingsModal");
+}
+async function saveLlmSettings() {
+  const body = {
+    enabled: document.getElementById("setEnabled").checked,
+    base_url: document.getElementById("setBaseUrl").value.trim(),
+    model: document.getElementById("setModel").value.trim(),
+    temperature: parseFloat(document.getElementById("setTemperature").value) || 0.2,
+    timeout: parseFloat(document.getElementById("setTimeout").value) || 30,
+  };
+  const key = document.getElementById("setApiKey").value.trim();
+  if (key) body.api_key = key;
+  try {
+    await apiPut("/settings/llm", body);
+    closeModal("llmSettingsModal");
+    toast("大模型配置已保存");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+/* ==================== 边点击：识别关系类型 ==================== */
+let currentEdge = null; // {source,target, similarity}
+
+async function analyzeEdgeRelation(force) {
+  if (!currentEdge) return;
+  const { source, target, similarity } = currentEdge;
+  const bodyEl = document.getElementById("edgeRelationBody");
+  const titleEl = document.getElementById("edgeRelationTitle");
+  const srcNode = allNodes.find(n => normalizeId(n.id) === source);
+  const tgtNode = allNodes.find(n => normalizeId(n.id) === target);
+  if (!srcNode || !tgtNode) {
+    bodyEl.innerHTML = '<span style="color:#9ca3af;">节点信息缺失，请稍后再试。</span>';
+    return;
+  }
+  titleEl.textContent = `🔍 ${srcNode.title}  ↔  ${tgtNode.title}`;
+  bodyEl.innerHTML = `<span class="tip" style="color:#9ca3af;">${force ? "正在重新识别" : "正在调用大模型识别"}（首次调用约 5~15s，同对节点再次点击返回缓存）…</span>`;
+  openModal("edgeRelationModal");
+  try {
+    const query = "?source_id=" + srcNode.id + "&target_id=" + tgtNode.id;
+    let r;
+    if (force) {
+      // 刷新 -> POST 强制调用
+      r = await apiPost("/relations/refresh" + query);
+    } else {
+      // 读缓存优先 -> GET
+      r = await apiGet("/relations/analyze" + query);
+    }
+    renderEdgeDetail(r, similarity);
+    toast(r.from_cache ? "使用缓存识别结果" : "识别完成");
+  } catch (e) {
+    bodyEl.innerHTML = `<div class="tip" style="color:#ef4444;">调用失败：${escape(e.message)}<br/>
+      如未配置大模型，请先点「🛠 大模型配置」填写 API Key 与模型名称。</div>`;
+  }
+}
+function renderEdgeDetail(r, fallbackSimilarity) {
+  const type = r.relation_type || "无关联";
+  const sim = (typeof r.similarity === "number" ? r.similarity : (fallbackSimilarity || 0));
+  const isUnrelated = (type === "无关联");
+  const body = `
+    <div style="margin-bottom:14px;">
+      <span class="relation-chip ${isUnrelated ? "unrelated" : ""}">${escape(type)}</span>
+      <span style="color:#4f8cff; font-weight:600; font-size:13px;">余弦相似度: ${(sim * 100).toFixed(1)}%</span>
+    </div>
+    <div class="meta-card">
+      <div class="title">📖 说明</div>
+      <div style="font-size:13px; color:#374151; line-height:1.7;">${escape(r.description || "")}</div>
+    </div>
+    <div class="meta-card" style="margin-bottom:10px;">
+      <div style="font-size:12px; color:#6b7280;">模型：${escape(r.model_name || "—")}</div>
+      <div style="font-size:12px; color:#6b7280;">缓存：${r.from_cache ? "是（返回上次识别）" : "否（本次实时调用）"}</div>
+      <div style="font-size:12px; color:#6b7280;">创建时间：${formatTime(r.create_time || "") || "—"}</div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="btn" id="btnPromoteManual" style="flex:1;">✚ 将此分析转为手动连线</button>
+      <button class="btn secondary" onclick="closeModal('edgeRelationModal')" style="flex:1;">关闭</button>
+    </div>
+  `;
+  document.getElementById("edgeRelationBody").innerHTML = body;
+  const btn = document.getElementById("btnPromoteManual");
+  if (btn && currentEdge) {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = "保存中…";
+      try {
+        const srcId = currentEdge.source;
+        const tgtId = currentEdge.target;
+        const payload = {
+          source_id: srcId,
+          target_id: tgtId,
+          relation_type: r.relation_type || "并列关系",
+          description: r.description || "",
+          strength: 0.9
+        };
+        await apiPost("/relations/manual", payload);
+        toast("✅ 已保存为手动连线");
+        closeModal("edgeRelationModal");
+        loadGraph();
+        loadManualRelations();
+      } catch (e) { toast(e.message, "error"); }
+      finally { btn.disabled = false; btn.textContent = "✚ 将此分析转为手动连线"; }
+    };
+  }
+}
+
+/* ==================== Tab 切换 ==================== */
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(el => {
+    el.classList.toggle("active", el.dataset.tab === name);
+  });
+  document.getElementById("tab-list").classList.toggle("active", name === "list");
+  document.getElementById("tab-graph").classList.toggle("active", name === "graph");
+  document.getElementById("tab-qa").classList.toggle("active", name === "qa");
+  document.getElementById("tab-freechat").classList.toggle("active", name === "freechat");
+  document.getElementById("tab-import").classList.toggle("active", name === "import");
+  if (name === "graph") {
+    ensureGraphChart();
+    loadGraph();
+  } else if (name === "qa") {
+    // Tab3 搜索历史会自动渲染
+  } else if (name === "freechat") {
+    if (window.__freechatReady !== true) {
+      initFreeChat();
+      window.__freechatReady = true;
+    } else {
+      refreshFreeChatSessions();
+    }
+  } else if (name === "import") {
+    if (window.__importReady !== true) {
+      initImportTab();
+      window.__importReady = true;
+    }
+  }
+}
+document.querySelectorAll(".tab").forEach(el => {
+  el.addEventListener("click", () => switchTab(el.dataset.tab));
+});
+
+/* ==================== 自由对话：管理会话 & 消息 ==================== */
+let freechatCurrentSessionId = null;
+let freechatSessions = [];
+
+async function refreshFreeChatSessions() {
+  try {
+    freechatSessions = await apiGet("/freechat/sessions");
+  } catch (e) {
+    console.error(e);
+    freechatSessions = [];
+  }
+  const listEl = document.getElementById("freechatSessionList");
+  if (!freechatSessions.length) {
+    listEl.innerHTML = '<span class="qa-chain-empty">暂无会话，点击上方「开启新对话」开始。</span>';
+    if (freechatCurrentSessionId !== null) {
+      // 当前会话可能被删除了
+      freechatCurrentSessionId = null;
+      clearFreeChatMessages();
+    }
+    return;
+  }
+  // 当前会话在列表里是否还存在？
+  const current = freechatSessions.find(s => s.id === freechatCurrentSessionId);
+  if (!current) {
+    // 若之前没有选中，则默认选第一个；若之前有但列表中没了，则置空
+    freechatCurrentSessionId = freechatSessions[0].id;
+  }
+  listEl.innerHTML = "";
+  freechatSessions.forEach(s => {
+    const item = document.createElement("div");
+    item.className = "freechat-session-item" + (s.id === freechatCurrentSessionId ? " active" : "");
+    item.innerHTML =
+      '<div class="freechat-session-title">' + escape(s.title || "新对话") + '</div>' +
+      '<div class="freechat-session-time">' + escape(s.update_time || s.create_time || "") + '</div>';
+    item.addEventListener("click", () => {
+      freechatCurrentSessionId = s.id;
+      refreshFreeChatSessions();
+      loadFreeChatMessages(s.id);
+      document.getElementById("freechatSessionTitle").textContent = s.title || "新对话";
+    });
+    listEl.appendChild(item);
+  });
+  // 若首个会话被选中且当前无消息，加载
+  if (freechatCurrentSessionId) {
+    const cur = freechatSessions.find(s => s.id === freechatCurrentSessionId);
+    if (cur) {
+      document.getElementById("freechatSessionTitle").textContent = cur.title || "新对话";
+      loadFreeChatMessages(freechatCurrentSessionId);
+    }
+  }
+}
+
+function clearFreeChatMessages() {
+  const box = document.getElementById("freechatMessages");
+  box.innerHTML = '<div class="freechat-empty">👋 请在左侧选择或开启一个对话，然后在下方输入消息。</div>';
+  document.getElementById("freechatSessionTitle").textContent = "未选择";
+}
+
+function renderFreeChatMessages(messages) {
+  const box = document.getElementById("freechatMessages");
+  box.innerHTML = "";
+  if (!messages || !messages.length) {
+    box.innerHTML = '<div class="freechat-empty">（本对话尚无消息）</div>';
+    return;
+  }
+  messages.forEach(m => {
+    const row = document.createElement("div");
+    row.className = "freechat-msg-row " + ((m.role || "").toLowerCase() === "user" ? "user" : "assistant");
+    const bubble = document.createElement("div");
+    bubble.className = "freechat-msg-bubble";
+    const head = document.createElement("div");
+    head.className = "freechat-msg-head";
+    head.textContent = ((m.role || "").toLowerCase() === "user" ? "👤 你" : "🤖 AI") + " · " + (m.create_time || "");
+    const body = document.createElement("div");
+    body.className = "freechat-msg-body";
+    body.textContent = m.content || "";
+    bubble.appendChild(head);
+    bubble.appendChild(body);
+    row.appendChild(bubble);
+    box.appendChild(row);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+async function loadFreeChatMessages(sessionId) {
+  try {
+    const messages = await apiGet("/freechat/sessions/" + sessionId + "/messages");
+    renderFreeChatMessages(messages);
+  } catch (e) {
+    const box = document.getElementById("freechatMessages");
+    box.innerHTML = '<div class="freechat-empty" style="color:#ef4444;">加载消息失败：' + escape(e.message) + '</div>';
+  }
+}
+
+async function createFreeChatSession() {
+  try {
+    const s = await apiPost("/freechat/sessions", {});
+    freechatCurrentSessionId = s.id;
+    await refreshFreeChatSessions();
+    loadFreeChatMessages(s.id);
+  } catch (e) {
+    alert("创建会话失败：" + e.message);
+  }
+}
+
+async function deleteFreeChatSession() {
+  if (!freechatCurrentSessionId) {
+    alert("请先选择一个会话。");
+    return;
+  }
+  if (!confirm("确认删除当前对话及其所有消息？此操作不可恢复。")) return;
+  try {
+    await apiDelete("/freechat/sessions/" + freechatCurrentSessionId);
+    freechatCurrentSessionId = null;
+    await refreshFreeChatSessions();
+    clearFreeChatMessages();
+  } catch (e) {
+    alert("删除失败：" + e.message);
+  }
+}
+
+async function sendFreeChatMessage() {
+  const inputEl = document.getElementById("freechatInput");
+  const content = (inputEl.value || "").trim();
+  if (!content) return;
+  if (!freechatCurrentSessionId) {
+    alert("请先选择或开启一个对话。");
+    return;
+  }
+
+  // 普通消息发送
+  const box = document.getElementById("freechatMessages");
+  // 清除 empty 提示
+  const emptyNodes = box.querySelectorAll(".freechat-empty");
+  emptyNodes.forEach(n => n.remove());
+
+  const userRow = document.createElement("div");
+  userRow.className = "freechat-msg-row user";
+  userRow.innerHTML =
+    '<div class="freechat-msg-bubble">' +
+      '<div class="freechat-msg-head">👤 你 · 正在发送…</div>' +
+      '<div class="freechat-msg-body">' + escape(content) + '</div>' +
+    '</div>';
+  box.appendChild(userRow);
+  box.scrollTop = box.scrollHeight;
+  inputEl.value = "";
+  inputEl.disabled = true;
+  document.getElementById("btnFreeChatSend").disabled = true;
+
+  try {
+    const resp = await apiPost("/freechat/sessions/" + freechatCurrentSessionId + "/messages", {
+      content: content,
+      use_history: true,
+      max_history: 20,
+    });
+    // 刷新会话列表（标题可能被更新），并更新当前消息列表
+    await refreshFreeChatSessions();
+    loadFreeChatMessages(freechatCurrentSessionId);
+  } catch (e) {
+    const errRow = document.createElement("div");
+    errRow.className = "freechat-msg-row assistant";
+    errRow.innerHTML =
+      '<div class="freechat-msg-bubble" style="background:#fee2e2; color:#991b1b;">' +
+        '<div class="freechat-msg-head">🤖 错误</div>' +
+        '<div class="freechat-msg-body">' + escape(e.message) + '</div>' +
+      '</div>';
+    box.appendChild(errRow);
+    box.scrollTop = box.scrollHeight;
+  } finally {
+    inputEl.disabled = false;
+    document.getElementById("btnFreeChatSend").disabled = false;
+    inputEl.focus();
+  }
+}
+
+async function generateDocument(topicHint) {
+  // 收集用户在侧边栏填写的配置
+  const style = (document.getElementById("docGenStyle") || {}).value || "popular";
+  const length = (document.getElementById("docGenLength") || {}).value || "medium";
+  const useKB = !!(document.getElementById("docGenUseKB") || {}).checked;
+
+  // 用户主题：输入框内填写的内容即为文档主题
+  const topic = topicHint.trim();
+
+  if (!topic) return;
+
+  const inputEl = document.getElementById("freechatInput");
+  const box = document.getElementById("freechatMessages");
+  const emptyNodes = box.querySelectorAll(".freechat-empty");
+  emptyNodes.forEach(n => n.remove());
+
+  // 渲染用户请求气泡
+  const userRow = document.createElement("div");
+  userRow.className = "freechat-msg-row user";
+  userRow.innerHTML =
+    '<div class="freechat-msg-bubble">' +
+      '<div class="freechat-msg-head">👤 你 · 文档请求</div>' +
+      '<div class="freechat-msg-body"><b>📝 生成文档：</b><br/>' + escape(topic) +
+      '<div style="font-size:11px; color:#6b7280; margin-top:6px;">风格：' +
+      {popular:"科普", formal:"正式", outline:"要点列表", tutorial:"教程步骤"}[style] +
+      '｜字数：' + {short:"~300", medium:"~800", long:"~1500"}[length] +
+      (useKB ? "｜基于知识库" : "｜自由撰写") + '</div>' +
+    '</div>';
+  box.appendChild(userRow);
+  box.scrollTop = box.scrollHeight;
+  inputEl.value = "";
+  inputEl.disabled = true;
+  document.getElementById("btnFreeChatSend").disabled = true;
+  document.getElementById("btnFreeChatGenDoc").disabled = true;
+
+  // 状态气泡：正在生成
+  const statusRow = document.createElement("div");
+  statusRow.className = "freechat-msg-row assistant";
+  statusRow.innerHTML =
+    '<div class="freechat-msg-bubble" style="background:#dbeafe; color:#1e40af;">' +
+      '<div class="freechat-msg-head">🤖 AI · 正在生成文档…</div>' +
+      '<div class="freechat-msg-body"><span id="docGenStatus">准备中…</span></div>' +
+    '</div>';
+  box.appendChild(statusRow);
+  box.scrollTop = box.scrollHeight;
+
+  try {
+    const payload = {
+      topic: topic,
+      use_knowledge_base: useKB,
+      style: style,
+      length: length,
+    };
+    if (freechatCurrentSessionId) payload.session_id = freechatCurrentSessionId;
+
+    const statusEl = statusRow.querySelector("#docGenStatus");
+    if (statusEl) statusEl.textContent = "正在调用大模型生成内容（可能需要 60–120 秒）…";
+
+    const resp = await apiPost("/freechat/generate-doc", payload);
+    // 把 statusRow 替换为成功结果
+    statusRow.querySelector(".freechat-msg-bubble").style.background = "#dcfce7";
+    statusRow.querySelector(".freechat-msg-bubble").style.color = "#166534";
+    if (resp && resp.ok) {
+      statusRow.innerHTML =
+        '<div class="freechat-msg-bubble" style="background:#dcfce7; color:#166534;">' +
+          '<div class="freechat-msg-head">🤖 AI · 文档生成完成</div>' +
+          '<div class="freechat-msg-body">' +
+            '✅ 文档：' + escape(resp.title || "未命名") + '<br/>' +
+            '字数：约 ' + (resp.word_count || 0) + ' 字<br/>' +
+            '使用模式：' + (resp.used_kb ? "基于知识库（" + (resp.retrieved_count || 0) + " 个相关节点）" : "自由撰写") + '<br/>' +
+            '保存路径：<br/><code style="background:#e0e7ff; padding:4px 6px; border-radius:4px; display:inline-block; word-break:break-all; margin-top:4px;">' + escape(resp.file_path || "") + '</code>' +
+          '</div>' +
+        '</div>';
+    } else {
+      statusRow.innerHTML =
+        '<div class="freechat-msg-bubble" style="background:#fee2e2; color:#991b1b;">' +
+          '<div class="freechat-msg-head">🤖 AI · 文档生成失败</div>' +
+          '<div class="freechat-msg-body">' + escape((resp && resp.error) ? resp.error : "未知错误") + '</div>' +
+        '</div>';
+    }
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    statusRow.querySelector(".freechat-msg-bubble").style.background = "#fee2e2";
+    statusRow.querySelector(".freechat-msg-bubble").style.color = "#991b1b";
+    statusRow.innerHTML =
+      '<div class="freechat-msg-bubble" style="background:#fee2e2; color:#991b1b;">' +
+        '<div class="freechat-msg-head">🤖 错误</div>' +
+        '<div class="freechat-msg-body">' + escape(e.message) + '</div>' +
+      '</div>';
+    box.scrollTop = box.scrollHeight;
+  } finally {
+    inputEl.disabled = false;
+    document.getElementById("btnFreeChatSend").disabled = false;
+    document.getElementById("btnFreeChatGenDoc").disabled = false;
+    inputEl.focus();
+  }
+}
+
+function initFreeChat() {
+  document.getElementById("btnFreeChatNew").addEventListener("click", createFreeChatSession);
+  document.getElementById("btnFreeChatDelete").addEventListener("click", deleteFreeChatSession);
+  document.getElementById("btnFreeChatSend").addEventListener("click", sendFreeChatMessage);
+  document.getElementById("btnFreeChatGenDoc").addEventListener("click", () => {
+    const inputEl = document.getElementById("freechatInput");
+    const content = (inputEl.value || "").trim();
+    if (content) {
+      generateDocument(content);
+    } else {
+      alert("请在输入框中输入文档主题，例如：'如何选择咖啡豆'");
+      inputEl.focus();
+    }
+  });
+  document.getElementById("freechatInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendFreeChatMessage();
+    }
+  });
+  // 文档设置面板：折叠 / 展开
+  const toggle = document.getElementById("docGenToggle");
+  const panel = document.getElementById("docGenPanel");
+  const icon = document.getElementById("docGenToggleIcon");
+  if (toggle && panel && icon) {
+    panel.style.display = "block";
+    toggle.addEventListener("click", () => {
+      const isHidden = panel.style.display === "none";
+      panel.style.display = isHidden ? "block" : "none";
+      icon.textContent = isHidden ? "▼" : "▶";
+    });
+  }
+
+  // 文档编辑面板：折叠 / 展开
+  const docEditToggle = document.getElementById("docEditToggle");
+  const docEditPanel = document.getElementById("docEditPanel");
+  const docEditIcon = document.getElementById("docEditToggleIcon");
+  if (docEditToggle && docEditPanel && docEditIcon) {
+    docEditPanel.style.display = "block";
+    docEditToggle.addEventListener("click", () => {
+      const isHidden = docEditPanel.style.display === "none";
+      docEditPanel.style.display = isHidden ? "block" : "none";
+      docEditIcon.textContent = isHidden ? "▼" : "▶";
+    });
+  }
+
+  // 文档编辑：按钮点击
+  const btnDocEdit = document.getElementById("btnDocEditSubmit");
+  if (btnDocEdit) {
+    btnDocEdit.addEventListener("click", () => {
+      const inputEl = document.getElementById("freechatInput");
+      const content = (inputEl.value || "").trim();
+      if (!content) {
+        alert("请先在输入框中描述编辑需求，例如：'把第2段改成 XXX，在第3段后插入...'");
+        inputEl.focus();
+        return;
+      }
+      editDocument(content);
+    });
+  }
+
+  refreshFreeChatSessions();
+}
+
+// 新增：编辑现有文档
+async function editDocument(editRequest) {
+  if (!freechatCurrentSessionId) {
+    alert("请先选择或开启一个对话");
+    return;
+  }
+  const filePath = (document.getElementById("docEditFilePath").value || "").trim();
+  if (!filePath) {
+    alert("请在左侧『编辑现有文档』面板中填写文档路径");
+    return;
+  }
+  const outputDir = (document.getElementById("docEditOutputDir").value || "").trim();
+
+  const box = document.getElementById("freechatMessages");
+  const emptyNodes = box.querySelectorAll(".freechat-empty");
+  emptyNodes.forEach(n => n.remove());
+
+  // 用户请求气泡
+  const userRow = document.createElement("div");
+  userRow.className = "freechat-msg-row user";
+  userRow.innerHTML =
+    '<div class="freechat-msg-bubble">' +
+      '<div class="freechat-msg-head">👤 你 · 文档编辑</div>' +
+      '<div class="freechat-msg-body">' +
+        '<b>文件：</b>' + escape(filePath) + '<br/>' +
+        '<b>需求：</b>' + escape(editRequest) +
+      '</div>' +
+    '</div>';
+  box.appendChild(userRow);
+  box.scrollTop = box.scrollHeight;
+
+  // 状态气泡
+  const statusRow = document.createElement("div");
+  statusRow.className = "freechat-msg-row assistant";
+  statusRow.innerHTML =
+    '<div class="freechat-msg-bubble" style="background:#dbeafe; color:#1e40af;">' +
+      '<div class="freechat-msg-head">🤖 AI · 正在编辑…</div>' +
+      '<div class="freechat-msg-body"><span id="docEditStatus">正在读取文档并调用大模型生成编辑指令（可能需要 60-120 秒）…</span></div>' +
+    '</div>';
+  box.appendChild(statusRow);
+  box.scrollTop = box.scrollHeight;
+
+  // 禁用输入
+  document.getElementById("freechatInput").disabled = true;
+  document.getElementById("btnFreeChatSend").disabled = true;
+  document.getElementById("btnDocEditSubmit").disabled = true;
+
+  try {
+    const payload = {
+      session_id: freechatCurrentSessionId,
+      file_path: filePath,
+      edit_request: editRequest,
+      use_knowledge_base: document.getElementById("docEditUseKB").checked,
+    };
+    if (outputDir) payload.output_dir = outputDir;
+
+    const resp = await apiPost("/freechat/edit-doc", payload);
+
+    if (resp && resp.ok) {
+      // 构造操作描述
+      let opsText = resp.operations ? resp.operations.map(op => {
+        const t = { replace: "替换", insert_after: "插入到", delete: "删除", append: "追加到末尾" }[op.op] || op.op;
+        const idx = op.paragraph_index ? ("段落 " + op.paragraph_index) : "";
+        if (op.op === "delete") return `・${t} ${idx}`;
+        return `・${t} ${idx}`;
+      }).join("<br/>") : "";
+
+      statusRow.querySelector(".freechat-msg-bubble").style.background = "#dcfce7";
+      statusRow.querySelector(".freechat-msg-bubble").style.color = "#166534";
+      const kbStatus = (resp && resp.used_kb)
+        ? ('✅ 使用知识库（命中 ' + (resp.retrieved_count || 0) + ' 条，优先按知识库内容编辑）')
+        : '⚠️ 未命中知识库，由 AI 基于通用知识进行编辑';
+      statusRow.innerHTML =
+        '<div class="freechat-msg-bubble" style="background:#dcfce7; color:#166534;">' +
+          '<div class="freechat-msg-head">🤖 AI · 文档编辑完成</div>' +
+          '<div class="freechat-msg-body">' +
+            '<div style="font-size:11px; color:#374151; margin-bottom:6px;">' + escape(kbStatus) + '</div>' +
+            '✅ 执行了 ' + (resp.changed_paragraphs || 0) + ' 个段落变更<br/>' +
+            (opsText ? ('<div style="margin-top:6px; padding:6px 8px; background:#ecfdf5; border-radius:4px; font-size:11px;">操作记录：<br/>' + opsText + '</div>') : '') +
+            '<br/>保存路径：<br/><code style="background:#e0e7ff; padding:4px 6px; border-radius:4px; display:inline-block; word-break:break-all; margin-top:4px;">' + escape(resp.file_path || "") + '</code>' +
+            (resp.backup_path ? ('<br/><span style="font-size:11px; color:#6b7280;">原文件备份：' + escape(resp.backup_path) + '</span>') : '') +
+          '</div>' +
+        '</div>';
+    } else {
+      statusRow.querySelector(".freechat-msg-bubble").style.background = "#fee2e2";
+      statusRow.querySelector(".freechat-msg-bubble").style.color = "#991b1b";
+      statusRow.innerHTML =
+        '<div class="freechat-msg-bubble" style="background:#fee2e2; color:#991b1b;">' +
+          '<div class="freechat-msg-head">🤖 AI · 文档编辑失败</div>' +
+          '<div class="freechat-msg-body">' + escape((resp && resp.error) ? resp.error : "未知错误") + '</div>' +
+        '</div>';
+    }
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    statusRow.querySelector(".freechat-msg-bubble").style.background = "#fee2e2";
+    statusRow.querySelector(".freechat-msg-bubble").style.color = "#991b1b";
+    statusRow.innerHTML =
+      '<div class="freechat-msg-bubble" style="background:#fee2e2; color:#991b1b;">' +
+        '<div class="freechat-msg-head">🤖 错误</div>' +
+        '<div class="freechat-msg-body">' + escape(e.message) + '</div>' +
+      '</div>';
+    box.scrollTop = box.scrollHeight;
+  } finally {
+    document.getElementById("freechatInput").disabled = false;
+    document.getElementById("btnFreeChatSend").disabled = false;
+    document.getElementById("btnDocEditSubmit").disabled = false;
+    document.getElementById("freechatInput").focus();
+  }
+}
+
+/* ==================== 列表管理：增删改查 ==================== */
+async function loadNodes() {
+  const kw = document.getElementById("searchInput").value.trim();
+  const cat = document.getElementById("categoryFilter").value;
+  let url = "/nodes";
+  const params = [];
+  if (kw) params.push("keyword=" + encodeURIComponent(kw));
+  if (cat) params.push("category=" + encodeURIComponent(cat));
+  if (params.length) url += "?" + params.join("&");
+  try {
+    nodes = await apiGet(url);
+    renderList();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function loadCategories() {
+  try {
+    const cats = await apiGet("/categories");
+    const sel = document.getElementById("categoryFilter");
+    const current = sel.value;
+    sel.innerHTML = '<option value="">全部分类</option>';
+    cats.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+    sel.value = current;
+  } catch (e) {}
+}
+
+function renderList() {
+  const listEl = document.getElementById("nodeList");
+  if (!nodes.length) {
+    listEl.innerHTML = '<div class="empty">暂无节点，点「+ 新增」开始记录</div>';
+    return;
+  }
+  listEl.innerHTML = "";
+  nodes.forEach(n => {
+    const item = document.createElement("div");
+    item.className = "node-item" + (n.id === currentNodeId ? " active" : "");
+    const tagsHtml = (n.tags || "")
+      .split(",")
+      .map(t => t.trim()).filter(Boolean)
+      .map(t => `<span class="tag">#${escape(t)}</span>`).join("");
+    item.innerHTML = `
+      <div class="title">${escape(n.title)}</div>
+      <div class="meta">
+        ${n.category ? `<span>[${escape(n.category)}]</span> ` : ""}
+        ${formatTime(n.create_time)}
+      </div>
+      <div class="meta" style="margin-top:4px;">${tagsHtml}</div>
+    `;
+    item.onclick = () => showDetail(n.id);
+    listEl.appendChild(item);
+  });
+}
+
+function showDetail(id) {
+  currentNodeId = id;
+  isEditing = false;
+  const node = nodes.find(n => n.id === id);
+  if (!node) return;
+  renderList();
+  const main = document.getElementById("mainContent");
+  main.innerHTML = `
+    <div class="title-bar">
+      <h2>${escape(node.title)}</h2>
+      <div class="actions">
+        <button class="btn" id="btnEdit">✎ 编辑</button>
+        <button class="btn danger" id="btnDelete">🗑 删除</button>
+      </div>
+    </div>
+    <div class="meta-info">
+      ID: ${node.id} &nbsp;|&nbsp;
+      分类: ${escape(node.category) || "<i style='color:#9ca3af;'>未分类</i>"} &nbsp;|&nbsp;
+      创建时间: ${formatTime(node.create_time)}
+    </div>
+    <div class="meta-info" style="border:none;padding:0;margin-bottom:18px;">
+      ${(node.tags || "").split(",").map(t=>t.trim()).filter(Boolean).map(t=>`<span class="tag">#${escape(t)}</span>`).join("") || "<span class='tip'>暂无标签</span>"}
+    </div>
+    <div class="detail-content">${escape(node.content) || "<span class='tip'>暂无内容</span>"}</div>
+    <div class="section-title" style="font-size:12px;font-weight:600;color:#6b7280;letter-spacing:.5px;text-transform:uppercase;margin:22px 0 10px;">🔗 最相关 Top 3</div>
+    <div id="detailRelatedArea" style="margin-bottom:16px;"><span class="tip" style="color:#9ca3af;font-size:12px;">加载中…</span></div>
+    <div class="section-title" style="font-size:12px;font-weight:600;color:#6b7280;letter-spacing:.5px;text-transform:uppercase;margin:18px 0 10px;">🔗 手动关联邻居</div>
+    <div id="detailManualArea"><span class="tip" style="color:#9ca3af;font-size:12px;">加载中…</span></div>
+  `;
+  document.getElementById("btnEdit").onclick = () => showEditForm(node);
+  document.getElementById("btnDelete").onclick = () => doDelete(node.id);
+
+  // 加载最相关 Top 3
+  apiGet(`/nodes/${node.id}/related?top=3`).then(related => {
+    const area = document.getElementById("detailRelatedArea");
+    if (!area) return;
+    if (!related || !related.length) {
+      area.innerHTML = '<span class="tip" style="color:#9ca3af;font-size:12px;">暂无关联节点</span>';
+      return;
+    }
+    area.innerHTML = `<ul class="related-list">
+      ${related.map(r => `
+        <li data-id="${r.id}" style="padding:10px 12px;border-radius:8px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:13px;color:#1f2937;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escape(r.title)}</span>
+          <span style="font-size:12px;color:#4f46e5;font-weight:600;padding:2px 8px;background:#eef2ff;border-radius:10px;">${(r.similarity * 100).toFixed(1)}%</span>
+        </li>
+      `).join("")}
+    </ul>`;
+    area.querySelectorAll("li").forEach(li => {
+      li.addEventListener("click", () => showDetail(Number(li.dataset.id)));
+    });
+  }).catch(err => {
+    const area = document.getElementById("detailRelatedArea");
+    if (area) area.innerHTML = '<span style="color:#ef4444;font-size:12px;">加载相关节点失败: ' + escape(err.message) + '</span>';
+  });
+
+  // 加载手动关联邻居
+  apiGet(`/nodes/${node.id}/manual-relations`).then(manualRels => {
+    const area = document.getElementById("detailManualArea");
+    if (!area) return;
+    if (!manualRels || !manualRels.length) {
+      area.innerHTML = '<span style="color:#9ca3af;font-size:12px;">（暂未手动关联其他节点）</span>';
+      return;
+    }
+    area.innerHTML = `<ul class="related-list">
+      ${manualRels.map(r => {
+        const other = Number(r.source_id) === Number(node.id)
+          ? r.target_title : r.source_title;
+        return `
+          <li data-id="${Number(r.source_id) === Number(node.id) ? r.target_id : r.source_id}" style="padding:10px 12px;border-radius:8px;background:#f0f7ff;cursor:pointer;display:flex;flex-direction:column;gap:4px;margin-bottom:6px;border:1px solid #dbeafe;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <span style="font-size:13px;color:#1d4ed8;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">↔ ${escape(other)}</span>
+              <span style="font-size:11px;color:#1d4ed8;padding:2px 8px;background:#dbeafe;border-radius:10px;">${escape(r.relation_type || "")}</span>
+            </div>
+            <div style="font-size:11px;color:#374151;">强度: ${Number(r.strength || 0).toFixed(2)}</div>
+            ${r.description ? `<div style="font-size:11px;color:#6b7280;line-height:1.5;">说明: ${escape(r.description).slice(0, 120)}</div>` : ""}
+          </li>
+        `;
+      }).join("")}
+    </ul>`;
+    area.querySelectorAll("li").forEach(li => {
+      li.addEventListener("click", () => showDetail(Number(li.dataset.id)));
+    });
+  }).catch(err => {
+    const area = document.getElementById("detailManualArea");
+    if (area) area.innerHTML = '<span style="color:#ef4444;font-size:12px;">加载手动关联邻居失败: ' + escape(err.message) + '</span>';
+  });
+}
+
+function showEditForm(node) {
+  isEditing = true;
+  const main = document.getElementById("mainContent");
+  main.innerHTML = `
+    <div class="title-bar">
+      <h2>${node.id ? "✎ 编辑节点" : "➕ 新增节点"}</h2>
+      <div class="actions">
+        <button class="btn" id="btnSave">💾 保存</button>
+        <button class="btn secondary" id="btnCancel">取消</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>标题 *</label>
+      <input type="text" id="f_title" value="${escape(node.title || "")}" />
+    </div>
+    <div class="form-group">
+      <label>分类</label>
+      <input type="text" id="f_category" value="${escape(node.category || "")}" />
+    </div>
+    <div class="form-group">
+      <label>标签 <span class="tip">（多个用英文逗号分隔）</span></label>
+      <input type="text" id="f_tags" value="${escape(node.tags || "")}" />
+    </div>
+    <div class="form-group">
+      <label>详细内容</label>
+      <textarea id="f_content">${escape(node.content || "")}</textarea>
+    </div>
+  `;
+  document.getElementById("btnSave").onclick = () => doSave(node.id || null);
+  document.getElementById("btnCancel").onclick = () => {
+    if (node.id) showDetail(node.id);
+    else {
+      document.getElementById("mainContent").innerHTML =
+        '<div class="placeholder">👈 请从左侧选择节点，或点击「+ 新增」创建新知识</div>';
+      currentNodeId = null;
+      renderList();
+    }
+  };
+}
+
+async function doSave(id) {
+  const data = {
+    title: document.getElementById("f_title").value.trim(),
+    category: document.getElementById("f_category").value.trim(),
+    tags: document.getElementById("f_tags").value.trim(),
+    content: document.getElementById("f_content").value,
+  };
+  if (!data.title) { toast("标题不能为空", "error"); return; }
+  try {
+    if (id) {
+      await apiPut("/nodes/" + id, data);
+      toast("已更新");
+    } else {
+      const res = await apiPost("/nodes", data);
+      currentNodeId = res.id;
+      toast("已创建");
+    }
+    await loadNodes();
+    await loadCategories();
+    showDetail(currentNodeId);
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function doDelete(id) {
+  if (!confirm("确认删除该节点？此操作不可撤销。")) return;
+  try {
+    await apiDelete("/nodes/" + id);
+    toast("已删除");
+    currentNodeId = null;
+    document.getElementById("mainContent").innerHTML =
+      '<div class="placeholder">👈 请从左侧选择节点，或点击「+ 新增」创建新知识</div>';
+    await loadNodes();
+    await loadCategories();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+/* ==================== 手动连线模式 ==================== */
+const manualMode = { active: false, nodeA: null, nodeB: null };
+
+function toggleManualMode() {
+  if (manualMode.active) exitManualMode();
+  else enterManualMode();
+}
+
+function enterManualMode() {
+  manualMode.active = true;
+  manualMode.nodeA = null;
+  manualMode.nodeB = null;
+  const indicator = document.getElementById("manualModeIndicator");
+  if (indicator) {
+    indicator.style.display = "inline-block";
+    const status = document.getElementById("mmStatus");
+    if (status) status.textContent = "请点击第一个节点";
+  }
+  const btn = document.getElementById("btnManualMode");
+  if (btn) {
+    btn.style.background = "#1d4ed8";
+    btn.style.color = "#fff";
+    btn.style.borderColor = "#1d4ed8";
+    btn.textContent = "📍 已进入连线模式（点击图谱中的两个节点）";
+  }
+  toast("✅ 已进入手动连线模式，请在图谱中点击两个节点", "info");
+}
+
+function exitManualMode() {
+  manualMode.active = false;
+  manualMode.nodeA = null;
+  manualMode.nodeB = null;
+  const indicator = document.getElementById("manualModeIndicator");
+  if (indicator) indicator.style.display = "none";
+  const btn = document.getElementById("btnManualMode");
+  if (btn) {
+    btn.style.background = "";
+    btn.style.color = "";
+    btn.style.borderColor = "";
+    btn.textContent = "📌 手动连线模式（点击两个节点即可连线）";
+  }
+  clearManualHighlight();
+}
+
+// —— 高亮实现：直接通过 setOption 修改节点 itemStyle，不依赖 ECharts 内置 highlight ——
+function clearManualHighlight() {
+  // 重置手动连线模式的节点样式（恢复原始颜色和阴影）
+  if (!chart || !allNodes || !allNodes.length) return;
+  try {
+    const option = chart.getOption();
+    if (!option || !option.series || !option.series[0] || !option.series[0].data) return;
+    const data = option.series[0].data;
+    // 恢复所有节点的默认样式（根据 category 还原颜色，去除手动阴影）
+    for (let i = 0; i < data.length; i++) {
+      const n = data[i];
+      n.symbolSize = n.symbolSize > 60 ? 60 : (n.symbolSize || 30);
+      // 用 category 重新计算颜色
+      const cat = n.category || "未分类";
+      n.itemStyle = n._origStyle ? { ...n._origStyle } : { color: colorByCategory(cat) };
+      delete n._selected;
+      delete n._origStyle;
+    }
+    chart.setOption({ series: [{ data: data }] });
+  } catch (e) {}
+}
+
+function highlightManualNodeByRawId(rawId) {
+  if (!chart) return;
+  try {
+    const option = chart.getOption();
+    if (!option || !option.series || !option.series[0] || !option.series[0].data) return;
+    const data = option.series[0].data;
+    const strRawId = String(rawId);
+    for (let i = 0; i < data.length; i++) {
+      const n = data[i];
+      if (String(n.rawId) === strRawId) {
+        // 保存原始样式
+        if (!n._origStyle) n._origStyle = { ...n.itemStyle };
+        // 手动高亮：蓝色边框 + 放大尺寸 + 白色阴影
+        n.itemStyle = {
+          color: "#1d4ed8",
+          borderColor: "#fff",
+          borderWidth: 3,
+          shadowBlur: 30,
+          shadowColor: "rgba(29,78,216,0.6)"
+        };
+        n.symbolSize = Math.max(60, (n.symbolSize || 30) * 1.6);
+        n._selected = true;
+        break;
+      }
+    }
+    chart.setOption({ series: [{ data: data }] });
+  } catch (e) {}
+}
+
+function handleManualNodeClick(data) {
+  if (!data || data.rawId == null) {
+    toast("节点数据异常", "error");
+    return;
+  }
+  const rawId = data.rawId;
+  const name = data.name || data.title || "节点";
+
+  // 点击已选中的节点 → 取消选择
+  if (manualMode.nodeA && String(manualMode.nodeA.id) === String(rawId)) {
+    manualMode.nodeA = null;
+    clearManualHighlight();
+    const status = document.getElementById("mmStatus");
+    if (status) status.textContent = "请点击第一个节点";
+    toast("已取消选择", "info");
+    return;
+  }
+
+  if (!manualMode.nodeA) {
+    // 第一个节点
+    manualMode.nodeA = { id: rawId, name };
+    highlightManualNodeByRawId(rawId);
+    const status = document.getElementById("mmStatus");
+    if (status) status.textContent = `已选 A：${name.slice(0, 16)} → 请点击第二个节点`;
+    toast(`✅ 已选节点 A：${name.slice(0, 30)}`, "info");
+    return;
+  }
+
+  if (!manualMode.nodeB) {
+    // 第二个节点
+    manualMode.nodeB = { id: rawId, name };
+    highlightManualNodeByRawId(rawId);
+    const status = document.getElementById("mmStatus");
+    if (status) status.textContent = `已选 A、B → 弹出设置窗口`;
+    setTimeout(() => openManualLinkModal(), 150);
+  }
+}
+
+function openManualLinkModal() {
+  const { nodeA, nodeB } = manualMode;
+  if (!nodeA || !nodeB) return;
+  const aEl = document.getElementById("mlmNodeA");
+  const bEl = document.getElementById("mlmNodeB");
+  if (aEl) aEl.textContent = nodeA.name;
+  if (bEl) bEl.textContent = nodeB.name;
+
+  // 重置强度和描述
+  const str = document.getElementById("mlmStrength");
+  const strVal = document.getElementById("mlmStrengthVal");
+  if (str) str.value = "0.8";
+  if (strVal) strVal.textContent = "0.80";
+  const descEl = document.getElementById("mlmDesc");
+  if (descEl) descEl.value = "";
+  const statusEl = document.getElementById("mlmStatus");
+  if (statusEl) statusEl.textContent = "";
+
+  // 加载关系类型
+  loadRelationTypesForModal();
+  openModal("manualLinkModal");
+}
+
+function loadRelationTypesForModal() {
+  const sel = document.getElementById("mlmType");
+  if (!sel) return;
+  apiGet("/relations/types").then(data => {
+    const types = (data && Array.isArray(data.types) && data.types.length) ? data.types : ["并列关系", "从属关系", "因果关系", "前提条件", "推导关系"];
+    sel.innerHTML = types.map(t => `<option value="${escape(t)}">${escape(t)}</option>`).join("");
+  }).catch(() => {
+    const fallback = ["并列关系", "从属关系", "因果关系", "前提条件", "推导关系"];
+    sel.innerHTML = fallback.map(t => `<option value="${escape(t)}">${escape(t)}</option>`).join("");
+  });
+}
+
+async function submitManualLink() {
+  const { nodeA, nodeB } = manualMode;
+  if (!nodeA || !nodeB) return;
+  const typeEl = document.getElementById("mlmType");
+  const strEl = document.getElementById("mlmStrength");
+  const descEl = document.getElementById("mlmDesc");
+  const statusEl = document.getElementById("mlmStatus");
+  const type = (typeEl && typeEl.value) || "并列关系";
+  const strength = Number(strEl ? strEl.value : 0.8) || 0.8;
+  const description = (descEl && descEl.value) || "";
+  if (statusEl) statusEl.textContent = "保存中…";
+  try {
+    const payload = { source_id: Number(nodeA.id), target_id: Number(nodeB.id), relation_type: type, description, strength };
+    await apiPost("/relations/manual", payload);
+    toast("✅ 手动连线已创建");
+    if (statusEl) statusEl.textContent = "已保存";
+    closeModal("manualLinkModal");
+    // 重置并退出连线模式
+    exitManualMode();
+    // 刷新图谱和列表
+    loadManualRelations();
+    loadGraph();
+  } catch (e) {
+    toast(e.message, "error");
+    if (statusEl) statusEl.textContent = "失败: " + e.message;
+  }
+}
+
+/* ==================== Tab2：知识图谱 ==================== */
+
+function ensureGraphChart() {
+  try {
+    if (typeof echarts === "undefined") {
+      toast("ECharts 脚本正在加载，请稍候再试", "error");
+      return;
+    }
+    if (!chartInited) {
+      const container = document.getElementById("graphChart");
+      if (!container) throw new Error("#graphChart 容器不存在");
+      chart = echarts.init(container);
+      chartInited = true;
+      window.addEventListener("resize", () => chart && chart.resize());
+      // 点击节点 → 弹出详情卡片；点击连线 → 若是手动连线则显示其元信息，否则调用 AI 关系识别
+      chart.on("click", (params) => {
+        // 手动连线模式：优先处理节点选中
+        if (manualMode.active && params.dataType === "node" && params.data && params.data.rawId != null) {
+          handleManualNodeClick(params.data);
+          return;
+        }
+        // 普通模式：正常的节点/边点击逻辑
+        if (params.dataType === "node" && params.data && params.data.rawId != null) {
+          showGraphDetail(params.data.rawId);
+        } else if (params.dataType === "edge" && params.data && params.data.rawPair) {
+          const { source, target, similarity } = params.data.rawPair;
+          currentEdge = { source, target, similarity };
+          if (params.data.kind === "manual") {
+            openManualEdgeDetail(params.data);
+          } else {
+            analyzeEdgeRelation(false);
+          }
+        }
+      });
+      document.getElementById("btnRefresh").onclick = loadGraph;
+      document.getElementById("btnReset").onclick = () => {
+        chart.dispatchAction({ type: "restore" });
+        chart.resize();
+      };
+
+      // 手动连线模式按钮
+      const btnMm = document.getElementById("btnManualMode");
+      if (btnMm) btnMm.onclick = toggleManualMode;
+      const mmExit = document.getElementById("mmExit");
+      if (mmExit) mmExit.onclick = () => exitManualMode();
+
+      // 手动连线弹窗的强度滑块实时显示
+      const mlmStrength = document.getElementById("mlmStrength");
+      const mlmStrengthVal = document.getElementById("mlmStrengthVal");
+      if (mlmStrength && mlmStrengthVal) {
+        mlmStrengthVal.textContent = Number(mlmStrength.value).toFixed(2);
+        mlmStrength.addEventListener("input", () => {
+          mlmStrengthVal.textContent = Number(mlmStrength.value).toFixed(2);
+        });
+      }
+      const mlmSubmit = document.getElementById("mlmSubmit");
+      if (mlmSubmit) mlmSubmit.onclick = submitManualLink;
+      // LLM 配置 & 重新识别按钮
+      const btnOpen = document.getElementById("btnOpenSettings");
+      if (btnOpen) btnOpen.onclick = openLlmSettings;
+      const btnSave = document.getElementById("btnSaveSettings");
+      if (btnSave) btnSave.onclick = saveLlmSettings;
+      const btnRe = document.getElementById("btnReanalyze");
+      if (btnRe) btnRe.onclick = () => analyzeEdgeRelation(true);
+
+      // 初始加载一次手动连线列表
+      loadManualRelations();
+    }
+    chart.resize();
+    setTimeout(() => chart && chart.resize(), 100);
+  } catch (e) {
+    console.error("ensureGraphChart 失败:", e);
+    toast("图谱初始化失败: " + e.message, "error");
+  }
+}
+
+/* ==================== 手动连线：列表与删除 ==================== */
+async function loadManualRelations() {
+  const box = document.getElementById("mrList");
+  const countEl = document.getElementById("mrCount");
+  if (!box) return;
+  try {
+    const list = await apiGet("/relations/manual");
+    const arr = Array.isArray(list) ? list : [];
+    if (countEl) countEl.textContent = arr.length;
+    if (!arr.length) {
+      box.innerHTML = '<span style="font-size:12px;color:#9ca3af;padding:6px 4px;">（暂无手动连线）</span>';
+      return;
+    }
+    box.innerHTML = arr.slice().reverse().map(r => {
+      const s = r.source_title || "（已删除）";
+      const t = r.target_title || "（已删除）";
+      const type = r.relation_type || "—";
+      const strength = Number(r.strength || 0).toFixed(2);
+      const desc = r.description ? `<div style="font-size:11px;color:#6b7280;line-height:1.5;margin-top:2px;">说明: ${escape(r.description).slice(0, 100)}</div>` : "";
+      return `<div style="padding:8px 10px;border:1px solid #dbeafe;border-radius:8px;background:#f0f7ff;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="flex:1;font-size:12px;color:#1d4ed8;font-weight:600;line-height:1.4;">${escape(s.slice(0, 30))} ↔ ${escape(t.slice(0, 30))}</div>
+          <button class="btn secondary" data-del="${r.id}" style="padding:4px 8px;font-size:11px;">删除</button>
+        </div>
+        <div style="font-size:11px;color:#374151;margin-top:4px;">类型: <b>${escape(type)}</b> · 强度: ${strength}</div>
+        ${desc}
+      </div>`;
+    }).join("");
+    box.querySelectorAll("button[data-del]").forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm("确定删除此手动连线？")) return;
+        try {
+          await apiDeleteManualRelation(btn.dataset.del);
+          toast("✅ 已删除");
+          loadManualRelations();
+          loadGraph();
+        } catch (e) { toast(e.message, "error"); }
+      };
+    });
+  } catch (e) {
+    if (box) box.innerHTML = '<span style="font-size:12px;color:#ef4444;">加载失败: ' + escape(e.message) + '</span>';
+  }
+}
+
+function buildDegreeMap(links) {
+  const deg = {};
+  links.forEach(l => {
+    deg[l.source] = (deg[l.source] || 0) + 1;
+    deg[l.target] = (deg[l.target] || 0) + 1;
+  });
+  return deg;
+}
+
+function colorByCategory(category) {
+  const palette = ["#4f8cff", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444",
+    "#06b6d4", "#ec4899", "#65a30d", "#0ea5e9", "#a855f7"];
+  if (!category) return "#94a3b8";
+  let h = 0;
+  for (let i = 0; i < category.length; i++) h = (h * 31 + category.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
+async function loadGraph() {
+  ensureGraphChart();
+  if (!chart) { toast("图表实例未就绪", "error"); return; }
+
+  const threshold = parseFloat(document.getElementById("threshold").value) || 0.7;
+  chart.showLoading({ text: "正在加载图谱…", textColor: "#4f8cff", maskColor: "rgba(255,255,255,0.65)" });
+
+  try {
+    const list = await apiGet("/nodes");
+    allNodes = list;
+    const idToNode = {};
+    list.forEach(n => { idToNode[normalizeId(n.id)] = n; });
+
+    // 分类统计
+    const catCount = {};
+    list.forEach(n => {
+      const key = n.category || "未分类";
+      catCount[key] = (catCount[key] || 0) + 1;
+    });
+    const categories = Object.keys(catCount).sort((a, b) => catCount[b] - catCount[a]);
+
+    document.getElementById("stat-nodes").textContent = list.length;
+    document.getElementById("stat-cats").textContent = categories.length;
+
+    // 分类图例渲染
+    const legendEl = document.getElementById("category-legend");
+    legendEl.innerHTML = categories.map(c => `
+      <div class="category-row">
+        <span class="dot" style="background:${colorByCategory(c)};"></span>
+        <span class="cat-name">${escape(c)}</span>
+        <span class="count">${catCount[c]}</span>
+      </div>
+    `).join("");
+
+    // 关联关系：向量边 + 手动边
+    let vectorRelations = [];
+    let manualRelations = [];
+    try { vectorRelations = await apiGet("/nodes/all-relations?threshold=" + threshold.toFixed(2)); } catch (e) { vectorRelations = []; }
+    try { manualRelations = await apiGet("/relations/manual"); } catch (e) { manualRelations = []; }
+    if (!Array.isArray(manualRelations)) manualRelations = [];
+
+    const manualPairSet = new Set();
+    manualRelations.forEach(r => {
+      const a = normalizeId(r.source_id);
+      const b = normalizeId(r.target_id);
+      if (a === b) return;
+      manualPairSet.add(a + "__" + b);
+      manualPairSet.add(b + "__" + a);
+    });
+
+    const links = [];
+    // 先处理向量边（已经与某条手动边重叠的向量边过滤掉，避免双重连线）
+    vectorRelations.forEach(r => {
+      const s = normalizeId(r.source_id);
+      const t = normalizeId(r.target_id);
+      if (s === t) return;
+      if (!idToNode[s] || !idToNode[t]) return;
+      if (manualPairSet.has(s + "__" + t)) return; // 已有手动连线，覆盖掉这条向量边
+      const sim = Number(r.similarity) || 0;
+      links.push({
+        source: s, target: t,
+        similarity: sim,
+        kind: "vector",
+        rawPair: { source: s, target: t, similarity: sim },
+      });
+    });
+    // 再处理手动连线，始终渲染，样式突出
+    manualRelations.forEach(r => {
+      const s = normalizeId(r.source_id);
+      const t = normalizeId(r.target_id);
+      if (s === t) return;
+      if (!idToNode[s] || !idToNode[t]) return;
+      const strength = Number(r.strength) || 0.8;
+      links.push({
+        source: s, target: t,
+        similarity: strength,
+        kind: "manual",
+        relation_type: r.relation_type || "",
+        relation_id: r.id,
+        description: r.description || "",
+        rawPair: { source: s, target: t, similarity: strength },
+      });
+    });
+
+    const manualCount = links.filter(l => l.kind === "manual").length;
+    const totalEdges = links.length;
+    document.getElementById("stat-edges").textContent = totalEdges + (manualCount ? `（手动 ${manualCount}）` : "");
+
+    const degree = buildDegreeMap(links);
+    const maxDeg = Math.max(1, ...Object.values(degree));
+
+    const chartNodes = list.map(n => {
+      const id = normalizeId(n.id);
+      const d = degree[id] || 0;
+      const size = 24 + (d / maxDeg) * 30;
+      return {
+        id, rawId: n.id, name: n.title,
+        symbolSize: size,
+        category: n.category || "未分类",
+        itemStyle: { color: colorByCategory(n.category) },
+        value: d,
+      };
+    });
+    const categoriesForChart = categories.map(c => ({ name: c }));
+
+    const option = {
+      tooltip: {
+        trigger: "item",
+        formatter: (p) => {
+          if (p.dataType === "node") {
+            const n = idToNode[p.data.id];
+            if (!n) return "";
+            return `<div style="font-weight:600;margin-bottom:4px;">${escape(n.title)}</div>
+              <div style="font-size:12px;color:#6b7280;">分类: ${escape(n.category) || "—"}</div>
+              <div style="font-size:12px;color:#6b7280;">关联节点数: ${p.data.value}</div>
+              <div style="font-size:12px;color:#9ca3af;margin-top:4px;">点击查看详情</div>`;
+          } else if (p.dataType === "edge") {
+            const d = p.data || {};
+            if (d.kind === "manual") {
+              return `<b>手动连线</b><br/>
+                关系类型: ${escape(d.relation_type || "—")}<br/>
+                强度: ${(d.similarity * 100).toFixed(0)}%<br/>
+                ${d.description ? `<span style="color:#6b7280;">说明: ${escape(d.description).slice(0, 80)}</span>` : ""}`;
+            }
+            return `<b>向量相似度</b>: ${(d.similarity * 100).toFixed(1)}%`;
+          }
+        }
+      },
+      legend: {
+        show: true,
+        orient: "horizontal",
+        left: 24, top: 12,
+        textStyle: { color: "#475569", fontSize: 12 },
+        itemWidth: 12, itemHeight: 12,
+        itemGap: 14,
+        data: categoriesForChart
+      },
+      animationDuration: 1200,
+      animationEasingUpdate: "quinticInOut",
+      series: [{
+        name: "知识节点",
+        type: "graph",
+        layout: "force",
+        top: 60, left: 24, right: 24, bottom: 20,
+        data: chartNodes,
+        links: links.map(l => ({
+          source: l.source, target: l.target,
+          similarity: l.similarity,
+          kind: l.kind || "vector",
+          relation_type: l.relation_type || "",
+          relation_id: l.relation_id,
+          description: l.description || "",
+          lineStyle: l.kind === "manual" ? {
+            opacity: 1,
+            width: 3.5,
+            color: "#1d4ed8",
+            curveness: 0.1
+          } : {
+            opacity: 0.3 + l.similarity * 0.6,
+            width: 1 + l.similarity * 2.5,
+            color: "#4f8cff",
+            curveness: 0.05
+          }
+        })),
+        categories: categoriesForChart,
+        roam: true,
+        draggable: true,
+        force: {
+          repulsion: 480,
+          edgeLength: [100, 240],
+          gravity: 0.07,
+          friction: 0.15
+        },
+        label: {
+          show: true, position: "bottom",
+          fontSize: 12, color: "#334155",
+          distance: 4
+        },
+        edgeSymbol: ["none", "arrow"],
+        edgeSymbolSize: 6,
+        lineStyle: { curveness: 0.05, color: "#94a3b8", opacity: 0.5 },
+        emphasis: {
+          focus: "self",
+          lineStyle: { width: 3, opacity: 1 },
+          itemStyle: { shadowBlur: 24, shadowColor: "rgba(79,140,255,0.5)" }
+        }
+      }]
+    };
+
+    chart.hideLoading();
+    chart.setOption(option, true);
+    setTimeout(() => chart && chart.resize(), 150);
+    // 如果已经有逻辑链节点：在 Tab2 的知识图谱上立刻高亮
+    if (qaLogicChainIds && qaLogicChainIds.length) {
+      setTimeout(() => highlightNodesOnChart(chart, allNodes, qaLogicChainIds, "未分类"), 300);
+    }
+
+    // 若之前有打开的详情卡片，清空
+    const card = document.getElementById("graphDetail");
+    card.innerHTML = "";
+  } catch (e) {
+    chart.hideLoading();
+    console.error("loadGraph 失败:", e);
+    toast("图谱加载失败: " + e.message, "error");
+  }
+}
+
+function showGraphDetail(nodeId) {
+  const node = allNodes.find(n => normalizeId(n.id) === normalizeId(nodeId));
+  if (!node) return;
+
+  const card = document.getElementById("graphDetail");
+  card.innerHTML = `
+    <div class="detail-card" id="detailCard">
+      <button class="close" id="detailClose">×</button>
+      <h3>${escape(node.title)}</h3>
+      <div class="meta">ID: ${node.id} &nbsp;|&nbsp; 分类: ${escape(node.category) || "—"} &nbsp;|&nbsp; ${formatTime(node.create_time)}</div>
+      <div class="tag-row" id="detailTags">
+        ${(node.tags || "").split(",").map(t=>t.trim()).filter(Boolean).map(t=>`<span class="tag">#${escape(t)}</span>`).join("") || "<span class='tip'>暂无标签</span>"}
+      </div>
+      <div class="section-title">详细内容</div>
+      <div class="body">${escape(node.content) || "<span class='tip'>暂无内容</span>"}</div>
+      <div class="section-title">🔗 最相关 Top 3</div>
+      <div id="relatedArea"><span class="tip" style="color:#9ca3af;font-size:12px;">加载中…</span></div>
+      <div class="section-title" style="margin-top:10px;">🔗 手动关联邻居</div>
+      <div id="manualRelatedArea"><span class="tip" style="color:#9ca3af;font-size:12px;">加载中…</span></div>
+    </div>
+  `;
+  document.getElementById("detailClose").onclick = () => { card.innerHTML = ""; };
+
+  apiGet(`/nodes/${node.id}/related?top=3`).then(related => {
+    const area = document.getElementById("relatedArea");
+    if (!related || !related.length) {
+      area.innerHTML = '<span class="tip" style="color:#9ca3af;font-size:12px;">暂无关联节点</span>';
+      return;
+    }
+    area.innerHTML = `<ul class="related-list">
+      ${related.map(r => `
+        <li data-id="${r.id}">
+          <span class="title">${escape(r.title)}</span>
+          <span class="sim">${(r.similarity * 100).toFixed(1)}%</span>
+        </li>
+      `).join("")}
+    </ul>`;
+    area.querySelectorAll("li").forEach(li => {
+      li.addEventListener("click", () => showGraphDetail(li.dataset.id));
+    });
+  }).catch(err => {
+    document.getElementById("relatedArea").innerHTML =
+      '<span class="tip" style="color:#ef4444;font-size:12px;">加载相关节点失败: ' + escape(err.message) + '</span>';
+  });
+
+  // 手动关联邻居
+  apiGet(`/nodes/${node.id}/manual-relations`).then(manualRels => {
+    const area = document.getElementById("manualRelatedArea");
+    if (!area) return;
+    if (!manualRels || !manualRels.length) {
+      area.innerHTML = '<span class="tip" style="color:#9ca3af;font-size:12px;">（暂未手动关联其他节点）</span>';
+      return;
+    }
+    area.innerHTML = `<ul class="related-list">
+      ${manualRels.map(r => {
+        const other = (normalizeId(r.source_id) === normalizeId(node.id))
+          ? { id: r.target_id, title: r.target_title }
+          : { id: r.source_id, title: r.source_title };
+        return `<li data-id="${other.id}">
+          <span class="title"><b style="color:#1d4ed8;">[${escape(r.relation_type || "手动")}]</b> ${escape(other.title || "已删除节点")}</span>
+          <span class="sim" style="background:#dbeafe;color:#1d4ed8;">手动</span>
+        </li>`;
+      }).join("")}
+    </ul>`;
+    area.querySelectorAll("li").forEach(li => {
+      li.addEventListener("click", () => {
+        const id = li.dataset.id;
+        if (id && id !== String(node.id)) showGraphDetail(id);
+      });
+    });
+  }).catch(err => {
+    const area = document.getElementById("manualRelatedArea");
+    if (area) area.innerHTML = '<span class="tip" style="color:#9ca3af;font-size:12px;">加载手动关联失败: ' + escape(err.message) + '</span>';
+  });
+}
+
+/* ==================== 手动连线：弹窗展示详情 + 支持删除 ==================== */
+function openManualEdgeDetail(data) {
+  const { source, target, relation_type, description, similarity, relation_id } = data || {};
+  const srcNode = allNodes.find(n => normalizeId(n.id) === source);
+  const tgtNode = allNodes.find(n => normalizeId(n.id) === target);
+  const srcTitle = srcNode ? srcNode.title : "(节点不存在)";
+  const tgtTitle = tgtNode ? tgtNode.title : "(节点不存在)";
+
+  const bodyEl = document.getElementById("edgeRelationBody");
+  const titleEl = document.getElementById("edgeRelationTitle");
+  if (titleEl) titleEl.textContent = `✋ 手动连线：${srcTitle} ↔ ${tgtTitle}`;
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      <div style="margin-bottom:14px;">
+        <span class="relation-chip">${escape(relation_type || "并列关系")}</span>
+        <span style="color:#1d4ed8;font-weight:600;font-size:13px;">强度: ${((similarity || 0) * 100).toFixed(0)}%</span>
+      </div>
+      <div class="meta-card">
+        <div class="title">📖 说明</div>
+        <div style="font-size:13px;color:#374151;line-height:1.7;">${escape(description || "（用户未填写说明）")}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn secondary" id="btnDeleteManual" style="flex:1;background:#fef2f2;color:#991b1b;">🗑 删除此手动连线</button>
+        <button class="btn secondary" onclick="closeModal('edgeRelationModal')" style="flex:1;">关闭</button>
+      </div>
+    `;
+    const delBtn = document.getElementById("btnDeleteManual");
+    if (delBtn) {
+      delBtn.onclick = async () => {
+        if (!confirm("确定删除这条手动连线？")) return;
+        try {
+          delBtn.disabled = true;
+          delBtn.textContent = "删除中…";
+          await apiDeleteManualRelation(relation_id);
+          toast("✅ 已删除");
+          closeModal("edgeRelationModal");
+          loadGraph();
+          loadManualRelations();
+        } catch (e) { toast(e.message, "error"); }
+        finally { delBtn.disabled = false; }
+      };
+    }
+  }
+  openModal("edgeRelationModal");
+}
+
+function apiDeleteManualRelation(id) {
+  return fetch(API_BASE + "/relations/manual/" + encodeURIComponent(id), { method: "DELETE" })
+    .then(res => { if (!res.ok) throw new Error("删除失败: " + res.status); return res.json(); });
+}
+
+/* ==================== 事件绑定 ==================== */
+document.getElementById("btnNew").onclick = () => {
+  currentNodeId = null;
+  showEditForm({});
+  renderList();
+};
+document.getElementById("searchInput").addEventListener("input", loadNodes);
+document.getElementById("categoryFilter").addEventListener("change", loadNodes);
+
+// 阈值滑块：拖拽时实时刷新
+const thresholdInput = document.getElementById("threshold");
+const thresholdValEl = document.getElementById("thresholdVal");
+thresholdInput.addEventListener("input", () => {
+  thresholdValEl.textContent = parseFloat(thresholdInput.value).toFixed(2);
+});
+let thresholdTimer = null;
+thresholdInput.addEventListener("change", () => {
+  clearTimeout(thresholdTimer);
+  loadGraph();
+});
+
+/* ==================== Tab 3: 智能问答 ==================== */
+let qaLogicChainIds = []; // 供 Tab2 跳转高亮使用
+
+/* 在给定图表实例上用 nodeIds 高亮节点与连线；不在集合里的节点保持默认样式/颜色 */
+function highlightNodesOnChart(chartInstance, nodes, nodeIds, defaultCategory) {
+  if (!chartInstance || !nodes || !nodes.length) return;
+  const ids = (nodeIds || []).map(n => String(n)).filter(Boolean);
+  const idSet = new Set(ids);
+  const option = chartInstance.getOption();
+  const series = option && option.series && option.series[0];
+  if (!series || !series.data) return;
+
+  // 1) 高亮节点：保留原始节点字段，只覆盖高亮相关样式
+  const newNodes = (series.data || []).map(n => {
+    const nid = String(n.id);
+    const hl = idSet.has(nid);
+    const category = n.category || defaultCategory || "未分类";
+    const merged = Object.assign({}, n);
+    merged.symbolSize = hl ? 38 : (n.symbolSize || 20);
+    merged.itemStyle = Object.assign({}, n.itemStyle || {}, {
+      color: hl ? "#f59e0b" : (n.itemStyle && n.itemStyle.color ? n.itemStyle.color : colorByCategory(category)),
+      borderColor: hl ? "#ffffff" : (n.itemStyle && n.itemStyle.borderColor ? n.itemStyle.borderColor : "#ffffff"),
+      borderWidth: hl ? 3 : (n.itemStyle && typeof n.itemStyle.borderWidth === "number" ? n.itemStyle.borderWidth : 0),
+      shadowBlur: hl ? 12 : 0,
+    });
+    merged.label = Object.assign({}, n.label || {}, {
+      show: true,
+      color: hl ? "#b45309" : ((n.label && n.label.color) || "#334155"),
+      fontWeight: hl ? "bold" : ((n.label && n.label.fontWeight) || "normal"),
+      fontSize: hl ? 13 : ((n.label && typeof n.label.fontSize === "number") ? n.label.fontSize : 11),
+    });
+    return merged;
+  });
+
+  // 2) 连线：两端都在逻辑链节点集合中的"真实 relations"高亮成橙色加粗，其余保留原样
+  //    （不会为逻辑链节点之间"凭空加边"，保持与 Tab 2 知识图谱一致）
+  const newLinks = (series.links || []).map(l => {
+    const hl = idSet.has(String(l.source)) && idSet.has(String(l.target));
+    const merged = Object.assign({}, l);
+    merged.lineStyle = Object.assign({}, l.lineStyle || {}, {
+      color: hl ? "#f59e0b" : ((l.lineStyle && l.lineStyle.color) || "#94a3b8"),
+      width: hl ? 4 : ((l.lineStyle && typeof l.lineStyle.width === "number") ? l.lineStyle.width : 1.5),
+      opacity: hl ? 1 : ((l.lineStyle && typeof l.lineStyle.opacity === "number") ? l.lineStyle.opacity : 0.5),
+      curveness: (l.lineStyle && typeof l.lineStyle.curveness === "number") ? l.lineStyle.curveness : 0.05,
+      type: (l.lineStyle && l.lineStyle.type) ? l.lineStyle.type : "solid",
+    });
+    return merged;
+  });
+
+  const categories = (series.categories && series.categories.length)
+    ? series.categories
+    : [...new Set((series.data || []).map(n => n.category || defaultCategory || "未分类"))].map(c => ({ name: c }));
+  chartInstance.setOption({ series: [{ data: newNodes, links: newLinks, categories }] });
+}
+
+function highlightLogicChain(nodeIds) {
+  const ids = (nodeIds || []).filter(n => n !== 0 && n != null);
+  qaLogicChainIds = ids; // 供 Tab2 切换时使用
+  // Tab2 的主知识图谱：如果已经加载好，立刻同步高亮
+  if (typeof chart !== "undefined" && chart && allNodes && allNodes.length) {
+    highlightNodesOnChart(chart, allNodes, ids, "未分类");
+  }
+}
+
+function clearLogicChainUI() {
+  document.getElementById("qaQuestion").innerHTML = "";
+  document.getElementById("qaAnswer").innerHTML = '<span class="tip" style="color:#9ca3af;">👋 你好！在左侧输入问题，我们基于知识网络回答。</span>';
+  document.getElementById("qaChain").innerHTML = '<span class="qa-chain-empty">等待问题…</span>';
+  document.getElementById("qaRefs").innerHTML = "";
+  document.getElementById("qaHint").innerHTML = "";
+  // 清空诊断窗口
+  const qam = document.getElementById("qaDebugMode");
+  if (qam) qam.textContent = "--";
+  const qb = document.getElementById("qaDebugBestSim");
+  if (qb) qb.textContent = "--";
+  const qc = document.getElementById("qaDebugCount");
+  if (qc) qc.textContent = "0";
+  const qr = document.getElementById("qaDebugRetrieved");
+  if (qr) { qr.innerHTML = ""; qr.style.display = "none"; }
+  const qraw = document.getElementById("qaDebugRaw");
+  if (qraw) { qraw.textContent = ""; qraw.style.display = "none"; }
+  const qt = document.getElementById("qaDebugTip");
+  if (qt) qt.textContent = "提交一次问题后会显示本次检索与模型输出细节。";
+  // 清空逻辑链节点集合，并重置 Tab2 图谱高亮
+  qaLogicChainIds = [];
+  if (typeof chart !== "undefined" && chart && allNodes && allNodes.length) {
+    highlightNodesOnChart(chart, allNodes, [], "未分类");
+  }
+}
+
+function renderQAResult(resp) {
+  document.getElementById("qaQuestion").innerHTML = `<b>❓ 问题：</b>${escape(resp.question)}`;
+  document.getElementById("qaAnswer").textContent = resp.answer || "（无答案）";
+  // 参考节点
+  const refs = resp.referenced_nodes || [];
+  const refsEl = document.getElementById("qaRefs");
+  refsEl.innerHTML = refs.length ? refs.map(r => `<div class="qa-ref-item" data-id="${r.id}"><span>${escape(r.title)}</span><span class="sim">${(r.similarity * 100).toFixed(0)}%</span></div>`).join("") : '<span class="qa-chain-empty">无</span>';
+
+  // 推理链（在侧边栏显示；节点点击后，跳转到 Tab2 高亮）
+  const chain = resp.logic_chain || [];
+  const chainEl = document.getElementById("qaChain");
+  let realChainIds = [];
+  if (!chain.length) {
+    chainEl.innerHTML = '<span class="qa-chain-empty">（未生成推理链）</span>';
+  } else {
+    const hint = chain.length === 1 && chain[0].node_id === 0;
+    chainEl.innerHTML = chain.map((s, idx) => {
+      if (hint) {
+        return `<div class="qa-chain-item qa-chain-item-hint" data-id="0">
+          <div class="qa-chain-order">ℹ</div>
+          <div class="qa-chain-body">
+            <div class="qa-chain-title">${escape(s.title)}</div>
+            <div class="qa-chain-explain">${escape(s.explanation || "")}</div>
+          </div>
+        </div>`;
+      }
+      realChainIds.push(Number(s.node_id));
+      return `<div class="qa-chain-item" data-id="${s.node_id}">
+        <div class="qa-chain-order">${idx + 1}</div>
+        <div class="qa-chain-body">
+          <div class="qa-chain-title">${escape(s.title)}</div>
+          <div class="qa-chain-explain">${escape(s.explanation || "")}</div>
+        </div>
+      </div>`;
+    }).join("");
+    chainEl.querySelectorAll(".qa-chain-item[data-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.getAttribute("data-id");
+        if (id && id !== "0") {
+          highlightLogicChain([Number(id)]);
+        }
+      });
+    });
+  }
+
+  // 推理链高亮（仅同步到 Tab2 知识图谱；Tab3 不再有小图谱）
+  highlightLogicChain(realChainIds);
+
+  // hint
+  const hintParts = [];
+  if (resp.model_name) hintParts.push(`模型：${escape(resp.model_name)}`);
+  if (resp.llm_enabled === false) hintParts.push("LLM 未启用");
+  if (resp.hint) hintParts.push(escape(resp.hint));
+  document.getElementById("qaHint").innerHTML = hintParts.join("｜");
+
+  // ====== 诊断窗口渲染 ======
+  const debug = resp.debug_info || {};
+  const modeLabel = debug.mode === "知识库" ? "📚 知识库模式"
+    : (debug.mode === "自由对话" ? "💬 自由对话模式" : (debug.mode || "--"));
+  const qam = document.getElementById("qaDebugMode");
+  if (qam) {
+    qam.textContent = modeLabel;
+    qam.style.background = debug.mode === "知识库" ? "#dbeafe" : (debug.mode === "自由对话" ? "#d1fae5" : "#e5e7eb");
+    qam.style.color = "#111827";
+  }
+  const qb = document.getElementById("qaDebugBestSim");
+  if (qb) qb.textContent = typeof debug.best_similarity === "number" ? debug.best_similarity.toFixed(4) : (debug.best_similarity ?? "--");
+  const qc = document.getElementById("qaDebugCount");
+  if (qc) qc.textContent = typeof debug.retrieved_count === "number" ? debug.retrieved_count : (resp.referenced_nodes ? resp.referenced_nodes.length : 0);
+  const qr = document.getElementById("qaDebugRetrieved");
+  const retrieved = resp.raw_retrieved || [];
+  if (qr) {
+    if (retrieved.length) {
+      qr.style.display = "block";
+      qr.innerHTML = "<b>召回节点列表：</b><br/>" + retrieved.map(r =>
+        `&nbsp;&nbsp;#${r.id} <b>${escape(r.title || "")}</b> &nbsp;sim=${typeof r.similarity === "number" ? r.similarity.toFixed(4) : (r.similarity || "-")} &nbsp;${escape(r.category || "")}<br/>&nbsp;&nbsp;&nbsp;&nbsp;${escape((r.content_preview || "").slice(0, 120))}`
+      ).join("<br/>");
+    } else {
+      qr.style.display = "block";
+      qr.innerHTML = "<b>召回节点列表：</b>（空 — 知识库无内容或未命中相关节点。AI 此时会自由对话。）";
+    }
+  }
+  const qraw = document.getElementById("qaDebugRaw");
+  if (qraw) {
+    if (debug.raw_llm_preview) {
+      qraw.style.display = "block";
+      qraw.textContent = "LLM 原始输出：\n" + debug.raw_llm_preview;
+    } else {
+      qraw.style.display = "none";
+    }
+  }
+  const qt = document.getElementById("qaDebugTip");
+  if (qt) qt.textContent = "如仍显示'根据当前知识库内容，无法回答该问题'，请检查：1) 是否未重启后端；2) 问题是否命中低相似度节点；3) LLM 原始输出是否包含该句。";
+
+  // 记录逻辑链 ID（给 Tab2 跳转使用）
+  qaLogicChainIds = realChainIds;
+}
+
+/* ==================== 搜索历史（localStorage） ==================== */
+const QA_HISTORY_KEY = "qa_history_v1";
+const QA_HISTORY_MAX = 20;
+
+function loadQaHistory() {
+  try {
+    const s = localStorage.getItem(QA_HISTORY_KEY);
+    if (!s) return [];
+    const arr = JSON.parse(s);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function saveQaHistoryItem(question, answer) {
+  if (!question) return;
+  const list = loadQaHistory().filter(item => item.question !== question);
+  list.unshift({
+    question: question,
+    answer: (answer || "").slice(0, 200),
+    timestamp: Date.now()
+  });
+  const trimmed = list.slice(0, QA_HISTORY_MAX);
+  try { localStorage.setItem(QA_HISTORY_KEY, JSON.stringify(trimmed)); } catch (e) {}
+  renderQaHistory();
+}
+
+function renderQaHistory() {
+  const box = document.getElementById("qaHistory");
+  if (!box) return;
+  const list = loadQaHistory();
+  if (!list.length) {
+    box.innerHTML = '<span class="qa-chain-empty">暂无搜索记录，提交一次问题后会自动记录。</span>';
+    return;
+  }
+  box.innerHTML = list.map((item, idx) => {
+    const t = new Date(item.timestamp);
+    const pad = (n) => String(n).padStart(2, "0");
+    const timeStr = `${t.getMonth() + 1}/${t.getDate()} ${pad(t.getHours())}:${pad(t.getMinutes())}`;
+    return `<div class="qa-history-item" data-idx="${idx}">
+      <div class="qa-history-q">${escape(item.question)}</div>
+      <div class="qa-history-a">${escape(item.answer)}</div>
+      <div class="qa-history-time">${timeStr}</div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll(".qa-history-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const idx = parseInt(el.getAttribute("data-idx") || "-1", 10);
+      const list = loadQaHistory();
+      if (idx >= 0 && idx < list.length) {
+        const input = document.getElementById("qaInput");
+        if (input) {
+          input.value = list[idx].question;
+          submitQA();
+        }
+      }
+    });
+  });
+}
+
+function clearQaHistory() {
+  if (!confirm("确定清空所有搜索历史？")) return;
+  try { localStorage.removeItem(QA_HISTORY_KEY); } catch (e) {}
+  renderQaHistory();
+  toast("✅ 搜索历史已清空");
+}
+
+async function submitQA() {
+  const q = document.getElementById("qaInput").value.trim();
+  if (!q) { toast("请输入问题", "error"); return; }
+  document.getElementById("qaAnswer").innerHTML = '<span class="tip" style="color:#4f8cff;">正在查询知识网络并请求大模型推理…（通常 3~15 秒）</span>';
+  try {
+    const resp = await apiPost("/qa/answer", { question: q, top_k: 10 });
+    renderQAResult(resp);
+    // 写入搜索历史
+    saveQaHistoryItem(q, resp.answer || "");
+  } catch (e) {
+    document.getElementById("qaAnswer").innerHTML = `<span style="color:#ef4444;">请求失败: ${escape(e.message)}</span>`;
+  }
+}
+
+document.getElementById("btnQASubmit").onclick = submitQA;
+document.getElementById("qaInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    submitQA();
+  }
+});
+document.getElementById("btnQAClear").onclick = () => {
+  document.getElementById("qaInput").value = "";
+  clearLogicChainUI();
+};
+document.getElementById("btnQAJumpGraph").onclick = () => {
+  switchTab("graph");
+  setTimeout(() => {
+    if (qaLogicChainIds.length && typeof chart !== "undefined" && chart && allNodes && allNodes.length) {
+      highlightNodesOnChart(chart, allNodes, qaLogicChainIds, "未分类");
+    }
+  }, 300);
+};
+const btnQaClearHistory = document.getElementById("btnQaClearHistory");
+if (btnQaClearHistory) btnQaClearHistory.onclick = clearQaHistory;
+// 页面加载时展示历史
+renderQaHistory();
+
+/* ==================== 文档导入 Tab ==================== */
+let importCurrentSessionId = null;
+let importCandidates = [];  // [{id, title, content, category, tags:[], source_chunk}]
+let importSelectedIds = new Set();
+
+function initImportTab() {
+  const fileInput = document.getElementById("importFileInput");
+  const btnStart = document.getElementById("btnImportStart");
+  const btnConfirm = document.getElementById("btnImportConfirm");
+  const btnSelectAll = document.getElementById("btnImportSelectAll");
+  const btnSelectNone = document.getElementById("btnImportClearSelection");
+  const btnReset = document.getElementById("btnImportReset");
+
+  btnStart.onclick = () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) { toast("请先选择一个文件", "error"); return; }
+    const lower = f.name.toLowerCase();
+    const limit = lower.endsWith(".txt") ? 1 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (f.size > limit) { toast("文件过大，请精简后再上传", "error"); return; }
+    startImportUpload(f);
+  };
+
+  btnConfirm.onclick = () => {
+    if (!importCurrentSessionId) { toast("暂无可确认的导入任务", "error"); return; }
+    if (!importSelectedIds.size) { toast("请至少勾选一个候选节点", "error"); return; }
+    confirmImport();
+  };
+
+  btnSelectAll.onclick = () => {
+    importCandidates.forEach(c => importSelectedIds.add(c.id));
+    renderImportCandidates();
+    refreshImportTitle();
+  };
+  btnSelectNone.onclick = () => {
+    importSelectedIds.clear();
+    renderImportCandidates();
+    refreshImportTitle();
+  };
+
+  btnReset.onclick = () => {
+    if (importCurrentSessionId) {
+      apiDelete("/import/" + importCurrentSessionId).catch(() => {});
+    }
+    importCurrentSessionId = null;
+    importCandidates = [];
+    importSelectedIds.clear();
+    document.getElementById("importFileInput").value = "";
+    document.getElementById("importFileInfo").textContent = "尚未选择文件";
+    document.getElementById("importProgress").innerHTML = "";
+    document.getElementById("btnImportStart").disabled = true;
+    document.getElementById("btnImportConfirm").disabled = true;
+    refreshImportTitle();
+    document.getElementById("importCandidatesBox").innerHTML =
+      '<div class="placeholder" id="importEmptyHint">请先在左侧选择文件并开始解析。<br/><span style="font-size:12px; color:#9ca3af;">（提示：若长时间未出现结果，请检查大模型配置是否可用。）</span></div>';
+  };
+
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    const info = document.getElementById("importFileInfo");
+    if (!f) {
+      info.textContent = "尚未选择文件";
+      btnStart.disabled = true;
+      return;
+    }
+    const lower = f.name.toLowerCase();
+    const isTxt = lower.endsWith(".txt");
+    const isDocx = lower.endsWith(".docx");
+    if (!isTxt && !isDocx) {
+      info.innerHTML = '<span style="color:#ef4444;">仅支持 .txt 或 .docx 文件</span>';
+      btnStart.disabled = true;
+      return;
+    }
+    const limit = isTxt ? 1 * 1024 * 1024 : 2 * 1024 * 1024;
+    const sizeKB = Math.round(f.size / 1024);
+    if (f.size > limit) {
+      info.innerHTML = `<span style="color:#ef4444;">${escape(f.name)} · ${sizeKB} KB（超出上限 ${Math.round(limit/1024)} KB）</span>`;
+      btnStart.disabled = true;
+      return;
+    }
+    info.innerHTML = `✅ <b>${escape(f.name)}</b> · ${sizeKB} KB`;
+    btnStart.disabled = false;
+  });
+}
+
+async function startImportUpload(file) {
+  const btnStart = document.getElementById("btnImportStart");
+  const btnConfirm = document.getElementById("btnImportConfirm");
+  const progressEl = document.getElementById("importProgress");
+  btnStart.disabled = true;
+  btnConfirm.disabled = true;
+  progressEl.innerHTML = "⏳ 上传与初始化…";
+
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const resp = await apiPostMultipart("/import/upload", fd);
+    importCurrentSessionId = resp.import_id;
+    importCandidates = [];
+    importSelectedIds.clear();
+    progressEl.innerHTML = "🚀 已提交解析，正在拉取进度…";
+    document.getElementById("importCandidatesBox").innerHTML =
+      '<div class="placeholder" id="importEmptyHint">正在解析文档，请稍候…<br/><span style="font-size:12px; color:#9ca3af;">（每块约 2-10 秒，取决于文档长度与大模型速度）</span></div>';
+
+    // 轮询进度
+    let totalWait = 0;
+    const maxTotalWaitMs = 5 * 60 * 1000; // 5 分钟硬上限
+    (function poll() {
+      setTimeout(async () => {
+        try {
+          const stat = await apiGet("/import/" + importCurrentSessionId + "/status");
+          importCandidates = (stat.candidates || []).map(c => ({
+            id: c.id,
+            title: c.title,
+            content: c.content,
+            category: c.category || "未分类",
+            tags: Array.isArray(c.tags) ? c.tags : [],
+            source_chunk: c.source_chunk || 0,
+          }));
+          // 默认全选
+          importCandidates.forEach(c => importSelectedIds.add(c.id));
+          refreshImportTitle();
+          renderImportCandidates();
+
+          const status = stat.status || "processing";
+          if (status === "ready") {
+            progressEl.innerHTML = `✅ 解析完成，共 <b>${importCandidates.length}</b> 条候选节点，请在右侧编辑后点击「确认写入知识库」。`;
+            btnStart.disabled = false;
+            btnConfirm.disabled = importCandidates.length === 0;
+            return;
+          }
+          if (status === "failed") {
+            progressEl.innerHTML = `❌ 解析失败：${escape(stat.message || "未知错误")}${stat.warnings && stat.warnings.length ? "<br/>详细：" + stat.warnings.map(w=>escape(w)).join("<br/>") : ""}`;
+            btnStart.disabled = false;
+            return;
+          }
+          totalWait += 2000;
+          if (totalWait > maxTotalWaitMs) {
+            progressEl.innerHTML = "⏰ 解析超时（超过 5 分钟），请稍后重试或精简文档后再试。";
+            btnStart.disabled = false;
+            return;
+          }
+          progressEl.innerHTML = `⏳ 正在解析（块 ${stat.done_chunks}/${stat.total_chunks || "?"}），请稍候…`;
+          poll();
+        } catch (e) {
+          progressEl.innerHTML = `❌ 查询进度失败：${escape(e.message)}`;
+          btnStart.disabled = false;
+        }
+      }, 2000);
+    })();
+  } catch (e) {
+    progressEl.innerHTML = `❌ 上传失败：${escape(e.message || e.error || "未知错误")}`;
+    btnStart.disabled = false;
+  }
+}
+
+function refreshImportTitle() {
+  const el = document.getElementById("importMainTitle");
+  if (!importCandidates.length) {
+    el.textContent = "📝 候选节点（等待上传与解析）";
+  } else {
+    el.textContent = `📝 候选节点（共 ${importCandidates.length} 条，已勾选 ${importSelectedIds.size} 条）`;
+  }
+}
+
+function renderImportCandidates() {
+  const box = document.getElementById("importCandidatesBox");
+  if (!box) return;
+  if (!importCandidates.length) {
+    box.innerHTML = '<div class="placeholder">还没有候选节点。请在左侧选择文件并开始解析。</div>';
+    return;
+  }
+  const html = importCandidates.map(c => {
+    const checked = importSelectedIds.has(c.id) ? "checked" : "";
+    const tagsStr = (c.tags || []).slice(0, 6).join(" / ");
+    return `<div class="qa-answer" style="border-color:#e5e7eb; background:#fff;">
+      <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:8px;">
+        <input type="checkbox" data-candidate-id="${c.id}" ${checked} style="margin-top:6px; cursor:pointer;">
+        <div style="flex:1;">
+          <input type="text" data-field="title" data-id="${c.id}" value="${escape(c.title)}"
+            style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:14px; font-weight:600; color:#111827;"/>
+          <div style="display:flex; gap:8px; margin-top:8px; font-size:12px;">
+            <span style="color:#6b7280;">分类：</span>
+            <input type="text" data-field="category" data-id="${c.id}" value="${escape(c.category)}"
+              style="flex:1; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;"/>
+            <span style="color:#6b7280;">标签（用 / 分隔）：</span>
+            <input type="text" data-field="tags" data-id="${c.id}" value="${escape(tagsStr)}"
+              style="flex:2; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;"/>
+            ${c.source_chunk ? `<span style="color:#9ca3af;">（来自文档第 ${c.source_chunk} 块）</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <textarea data-field="content" data-id="${c.id}" rows="4"
+        style="width:100%; padding:8px 12px; border:1px solid #e5e7eb; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical; line-height:1.75;">${escape(c.content)}</textarea>
+    </div>`;
+  }).join("");
+  box.innerHTML = html;
+
+  // 事件绑定
+  box.querySelectorAll("input[type=checkbox][data-candidate-id]").forEach(input => {
+    input.addEventListener("change", () => {
+      const id = Number(input.dataset.candidateId);
+      if (input.checked) importSelectedIds.add(id);
+      else importSelectedIds.delete(id);
+      refreshImportTitle();
+      const btnConfirm = document.getElementById("btnImportConfirm");
+      if (btnConfirm) btnConfirm.disabled = importSelectedIds.size === 0;
+    });
+  });
+  box.querySelectorAll('input[type="text"][data-field][data-id], textarea[data-field][data-id]').forEach(el => {
+    el.addEventListener("input", () => {
+      const id = Number(el.dataset.id);
+      const field = el.dataset.field;
+      const candidate = importCandidates.find(c => c.id === id);
+      if (!candidate) return;
+      if (field === "tags") {
+        candidate.tags = el.value.split(/[\/,，、]/).map(s => s.trim()).filter(Boolean);
+      } else {
+        candidate[field] = el.value;
+      }
+    });
+  });
+  const btnConfirm = document.getElementById("btnImportConfirm");
+  if (btnConfirm) btnConfirm.disabled = importSelectedIds.size === 0;
+}
+
+async function confirmImport() {
+  const btnConfirm = document.getElementById("btnImportConfirm");
+  const btnStart = document.getElementById("btnImportStart");
+  btnConfirm.disabled = true;
+  btnStart.disabled = true;
+
+  const overrides = {};
+  importCandidates.forEach(c => {
+    if (!importSelectedIds.has(c.id)) return;
+    overrides[String(c.id)] = {
+      title: c.title,
+      content: c.content,
+      category: c.category,
+      tags: c.tags || [],
+    };
+  });
+
+  try {
+    const resp = await apiPost("/import/" + importCurrentSessionId + "/confirm", {
+      keep_ids: Array.from(importSelectedIds),
+      overrides: overrides,
+    });
+    toast(`✅ 成功写入 ${resp.inserted_ids ? resp.inserted_ids.length : 0} 条节点到知识库`, "success");
+    // 刷新其他 Tab 的节点数据
+    loadCategories();
+    loadNodes();
+    setTimeout(() => {
+      toast("💡 提示：你可以切换到「知识图谱」或「智能问答」查看新加入的节点。", "success");
+    }, 800);
+  } catch (e) {
+    toast("❌ 写入失败：" + (e.message || e.error || "未知错误"), "error");
+    btnConfirm.disabled = false;
+    btnStart.disabled = false;
+  }
+}
+
+/* ==================== 初始化 ==================== */
+loadCategories();
+loadNodes();
+</script>
+</body>
+</html>
