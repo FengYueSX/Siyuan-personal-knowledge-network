@@ -2824,7 +2824,8 @@ async function startImportUpload(file) {
 
     // 轮询进度
     let totalWait = 0;
-    const maxTotalWaitMs = 5 * 60 * 1000; // 5 分钟硬上限
+    const maxTotalWaitMs = 25 * 60 * 1000; // 25 分钟硬上限（与后端一致）
+    let awaitingPromptShown = false;
     (function poll() {
       setTimeout(async () => {
         try {
@@ -2849,6 +2850,36 @@ async function startImportUpload(file) {
             btnConfirm.disabled = importCandidates.length === 0;
             return;
           }
+          if (status === "awaiting_confirm" && !awaitingPromptShown) {
+            awaitingPromptShown = true;
+            const continueYes = confirm(
+              "⏸ 文档解析已进行超过 10 分钟。\n\n当前进度：块 " +
+                (stat.done_chunks || 0) +
+                " / " +
+                (stat.total_chunks || "?") +
+                "\n已提取：" +
+                (importCandidates.length || 0) +
+                " 条候选\n\n是否继续解析至 25 分钟总时限？\n\n点击【确定】= 继续\n点击【取消】= 停止并使用当前已解析的结果"
+            );
+            if (continueYes) {
+              try {
+                await apiPost("/import/" + importCurrentSessionId + "/continue", {});
+                progressEl.innerHTML = "✅ 已收到继续指令，正在恢复解析…";
+              } catch (e) {
+                toast("发送继续指令失败：" + e.message, "error");
+                awaitingPromptShown = false;
+              }
+            } else {
+              // 用户选择不继续，把当前已解析的内容保留下来让用户直接选择/确认
+              progressEl.innerHTML = `⏹ 已在 10 分钟处停止解析，当前 <b>${importCandidates.length}</b> 条候选节点。你可以点击「确认写入知识库」仅保存当前已提取的节点，或点击「重置」重新开始。`;
+              btnStart.disabled = false;
+              btnConfirm.disabled = importCandidates.length === 0;
+              return;
+            }
+          } else if (status === "awaiting_confirm") {
+            // 已显示过弹窗，后续轮询时显示提示，避免阻塞 UI
+            progressEl.innerHTML = `⏸ 已暂停 10 分钟，等待确认是否继续（当前进度：块 ${stat.done_chunks}/${stat.total_chunks || "?"}）。`;
+          }
           if (status === "failed") {
             progressEl.innerHTML = `❌ 解析失败：${escape(stat.message || "未知错误")}${stat.warnings && stat.warnings.length ? "<br/>详细：" + stat.warnings.map(w=>escape(w)).join("<br/>") : ""}`;
             btnStart.disabled = false;
@@ -2856,7 +2887,7 @@ async function startImportUpload(file) {
           }
           totalWait += 2000;
           if (totalWait > maxTotalWaitMs) {
-            progressEl.innerHTML = "⏰ 解析超时（超过 5 分钟），请稍后重试或精简文档后再试。";
+            progressEl.innerHTML = "⏰ 解析超时（超过 25 分钟），请稍后重试或精简文档后再试。";
             btnStart.disabled = false;
             return;
           }

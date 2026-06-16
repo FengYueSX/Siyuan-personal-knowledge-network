@@ -3359,10 +3359,20 @@ async def import_upload(file: UploadFile = File(...), db: Session = Depends(get_
         "candidates": [],  # list[dict]
         "warnings": [],
         "lock": threading.Lock(),
+        "start_time": time.time(),
+        "paused_at": None,  # 记录第一次暂停时间（秒）
+        "paused_done": False,  # 是否执行过暂停流程
+        "pause_event": threading.Event(),  # 用于在 awaiting_confirm 状态下恢复
     }
+    sess["pause_event"].set()  # 初始状态：不阻塞
     _import_put(import_id, sess)
 
     # 5) 后台异步启动解析
+    # 常量：10 分钟触发暂停、25 分钟总时限、每个 chunk 的 LLM timeout 5 分钟
+    IMPORT_PAUSE_SECONDS = 10 * 60
+    IMPORT_MAX_SECONDS = 25 * 60
+    IMPORT_CHUNK_TIMEOUT = 5 * 60
+
     def _background_parse():
         # 后台线程中使用独立的 DB session（请求层的 db 可能已被释放）
         db_bg = SessionLocal()
@@ -3377,21 +3387,68 @@ async def import_upload(file: UploadFile = File(...), db: Session = Depends(get_
                 return
 
             per_chunk = max_nodes_per_chunk(len(chunks))
+            start = time.time()
             for idx, chunk in enumerate(chunks, start=1):
+                # 在处理该块前检查时间
+                elapsed = time.time() - start
+
+                # A) 检查 25 分钟总时限
+                if elapsed > IMPORT_MAX_SECONDS:
+                    with sess["lock"]:
+                        sess["status"] = "failed"
+                        sess["warnings"].append(
+                            f"已到达 25 分钟总时限，停止解析（当前已处理 {idx - 1} / {len(chunks)} 块）。"
+                        )
+                    _import_put(import_id, sess)
+                    return
+
+                # B) 检查 10 分钟暂停：首次达到 10 分钟时等待用户确认
+                if elapsed > IMPORT_PAUSE_SECONDS and not sess.get("paused_done"):
+                    with sess["lock"]:
+                        sess["paused_done"] = True
+                        sess["paused_at"] = time.time()
+                        sess["status"] = "awaiting_confirm"
+                    _import_put(import_id, sess)
+                    # 阻塞等待前端发送 continue 请求；若 15 分钟内仍未收到 continue 则超时终止
+                    remaining = max(30.0, IMPORT_MAX_SECONDS - elapsed)
+                    resumed = sess["pause_event"].wait(timeout=remaining)
+                    # 被 continue 接口唤醒后，重置事件以便后续可能的暂停（当前只暂停一次）
+                    sess["pause_event"].set()  # 保持 set 状态，不再阻塞
+                    if not resumed:
+                        # 等待超时仍未收到 continue
+                        with sess["lock"]:
+                            sess["status"] = "failed"
+                            sess["warnings"].append(
+                                "解析已在 10 分钟处暂停，但长时间未收到继续指令，已终止。"
+                            )
+                        _import_put(import_id, sess)
+                        return
+                    # 用户已点击继续，此时再检查一次是否超总时限
+                    if time.time() - start > IMPORT_MAX_SECONDS:
+                        with sess["lock"]:
+                            sess["status"] = "failed"
+                            sess["warnings"].append("继续后已到达 25 分钟总时限，停止解析。")
+                        _import_put(import_id, sess)
+                        return
+                    # 继续正常处理该块
+                    with sess["lock"]:
+                        sess["status"] = "processing"
+                    _import_put(import_id, sess)
+
                 nodes: list[dict] = []
                 chunk_warning = ""
                 system_p, user_p = _build_extract_prompt(chunk, idx, len(chunks), per_chunk)
                 try:
                     raw = call_llm_chat(user_p, system=system_p, base_url=base_url,
                                         api_key=api_key, model=model, temperature=temperature,
-                                        timeout=120)
+                                        timeout=IMPORT_CHUNK_TIMEOUT)
                     nodes = _robust_parse_json_array(raw)
                 except Exception as e:
                     chunk_warning = f"第 {idx} 块首次解析失败：{e}"
                     try:
                         raw = call_llm_chat(user_p, system=system_p, base_url=base_url,
                                             api_key=api_key, model=model, temperature=temperature,
-                                            timeout=120)
+                                            timeout=IMPORT_CHUNK_TIMEOUT)
                         nodes = _robust_parse_json_array(raw)
                         chunk_warning = ""
                     except Exception as e2:
@@ -3475,6 +3532,47 @@ def import_status(import_id: str, _: Session = Depends(get_db)):
         warnings=sess.get("warnings", []),
         message=(f"当前共生成 {len(sess.get('candidates', []))} 条候选节点；"
                  f"请在前端人工校对后提交确认，正式写入知识库。"),
+    )
+
+
+@app.post("/api/import/{import_id}/continue", response_model=ImportStatusResponse,
+          summary="用户确认继续解析（在 10 分钟暂停提示后使用）")
+def import_continue(import_id: str, _: Session = Depends(get_db)):
+    sess = _import_get(import_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="导入任务不存在或已过期。")
+    with sess["lock"]:
+        if sess["status"] != "awaiting_confirm":
+            # 非暂停状态，直接返回当前状态，由前端自行决定后续流程
+            return ImportStatusResponse(
+                import_id=import_id,
+                file_name=sess.get("file_name", ""),
+                file_size=sess.get("file_size", 0),
+                text_chars=sess.get("text_chars", 0),
+                total_chunks=sess.get("total_chunks", 0),
+                done_chunks=sess.get("done_chunks", 0),
+                status=sess.get("status", "unknown"),
+                candidates=[ImportCandidate(**c) for c in sess.get("candidates", [])],
+                warnings=sess.get("warnings", []),
+                message="当前无需继续。",
+            )
+        # 已在暂停状态：设置 processing 并触发 pause_event，让后台线程继续
+        sess["status"] = "processing"
+    _import_put(import_id, sess)
+    pause_event = sess.get("pause_event")
+    if pause_event is not None:
+        pause_event.set()  # 解除 wait 阻塞
+    return ImportStatusResponse(
+        import_id=import_id,
+        file_name=sess.get("file_name", ""),
+        file_size=sess.get("file_size", 0),
+        text_chars=sess.get("text_chars", 0),
+        total_chunks=sess.get("total_chunks", 0),
+        done_chunks=sess.get("done_chunks", 0),
+        status="processing",
+        candidates=[ImportCandidate(**c) for c in sess.get("candidates", [])],
+        warnings=sess.get("warnings", []),
+        message="已收到继续指令，正在恢复解析…",
     )
 
 
